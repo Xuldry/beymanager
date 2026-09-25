@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>BeyManager</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#201f23">
+<link rel="icon" href="media/icon-192.png">
+<link rel="apple-touch-icon" href="media/icon-512.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-icon">◈</span>
+    <div>
+      <h1>BeyManager <span class="build-tag">Build 1</span></h1>
+      <p class="tagline">Your Beyblade collection, organized</p>
+    </div>
+  </div>
+  <nav class="tabs" id="mainTabs">
+    <button class="tab-btn active" data-tab="mybeys">My Beys</button>
+    <button class="tab-btn" data-tab="builder">Builder</button>
+    <button class="tab-btn" data-tab="database">Database</button>
+  </nav>
+</header>
+
+<main id="app">
+
+  <!-- MY BEYS TAB -->
+  <section class="tab-panel active" id="panel-mybeys">
+    <h3 class="section-title" style="margin-top:0">Your Collection at a Glance</h3>
+    <div class="ownership-summary" id="ownershipSummary"></div>
+
+    <h3 class="section-title">Saved Combos</h3>
+    <div class="saved-combos-controls" id="savedCombosControls"></div>
+    <div class="saved-combos" id="savedCombos"></div>
+  </section>
+
+  <!-- BUILDER TAB -->
+  <section class="tab-panel" id="panel-builder">
+    <div class="combo-builder">
+      <div class="combo-picker" id="comboPicker">
+        <label class="owned-toggle standalone">
+          <input type="checkbox" id="comboOwnedOnly" checked>
+          Only show parts I own
+        </label>
+
+        <div class="picker-group" id="pickerBladeStandard">
+          <label>Blade</label>
+          <select id="selectBlade"></select>
+        </div>
+
+        <div class="picker-group cx-only" id="pickerCXGroup" style="display:none">
+          <label>Lock Chip</label>
+          <select id="selectLockChip"></select>
+          <label>Main Blade</label>
+          <select id="selectMainBlade"></select>
+          <label>Assist Blade</label>
+          <select id="selectAssistBlade"></select>
+        </div>
+
+        <div class="picker-group">
+          <label>Ratchet</label>
+          <select id="selectRatchet"></select>
+        </div>
+
+        <div class="picker-group">
+          <label>Bit</label>
+          <select id="selectBit"></select>
+        </div>
+
+        <button class="btn-primary" id="btnSaveCombo">Save this combo</button>
+      </div>
+
+      <div class="combo-result" id="comboResult">
+        <h3>Estimated Stats</h3>
+        <p class="hint">Beyblade X doesn't publish official numeric stats — these bars blend each part's type, weight and physical specs into a rough comparison. Use them to compare combos, not as ground truth.</p>
+        <div class="stat-bars" id="statBars"></div>
+        <div class="combo-meta" id="comboMeta"></div>
+      </div>
+    </div>
+
+    <h3 class="section-title">Best Combos You Can Build Right Now</h3>
+    <p class="hint">Ranked by estimated overall power, using only parts you own.</p>
+    <div class="ranked-combos" id="bestCombos"></div>
+
+    <h3 class="section-title">Parts Worth Buying Next</h3>
+    <p class="hint">Missing parts that would fill a gap in your collection or unlock strong combos. Tap one to see its full database entry.</p>
+    <div class="ranked-parts" id="suggestedParts"></div>
+  </section>
+
+  <!-- DATABASE TAB -->
+  <section class="tab-panel" id="panel-database">
+    <div class="subtabs" id="partTypeTabs">
+      <button class="subtab-btn active" data-parttype="blades">Blades <span class="count-badge" id="count-blades"></span></button>
+      <button class="subtab-btn" data-parttype="ratchets">Ratchets <span class="count-badge" id="count-ratchets"></span></button>
+      <button class="subtab-btn" data-parttype="bits">Bits <span class="count-badge" id="count-bits"></span></button>
+    </div>
+
+    <div class="filter-bar">
+      <input type="search" id="searchInput" placeholder="Search by name or code…">
+      <select id="filterSeries" class="filter-select"></select>
+      <select id="filterType" class="filter-select">
+        <option value="">All types</option>
+        <option value="Attack">Attack</option>
+        <option value="Defense">Defense</option>
+        <option value="Stamina">Stamina</option>
+        <option value="Balance">Balance</option>
+      </select>
+      <label class="owned-toggle">
+        <input type="checkbox" id="filterOwnedOnly">
+        Owned only
+      </label>
+      <button class="btn-primary" id="btnAddBey" style="margin-left:auto">+ Add a bey I bought</button>
+      <button class="btn-primary" id="btnAddCustomPart">+ Add a part I own</button>
+    </div>
+
+    <p class="hint" id="missingPartsHint">Bought a full set? "+ Add a bey I bought" marks all its parts as owned in one tap. Can't find a bey at all? Hasbro sells US-exclusive "retool" releases (new name, same or modified parts) that our source database hasn't catalogued yet — tap "+ Add a part I own" to add it yourself.</p>
+
+    <div class="card-grid" id="partGrid"></div>
+  </section>
+
+</main>
+
+<div class="part-modal" id="partModal">
+  <div class="part-modal-inner">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script src="data/blades.js"></script>
+<script src="data/ratchets.js"></script>
+<script src="data/bits.js"></script>
+<script src="app.js"></script>
+<script>
+  // Only works on a secure origin (https, or localhost for local testing) —
+  // browsers refuse to register service workers over plain http:// or file://.
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js').catch(function () { /* offline install unavailable this session */ });
+    });
+  }
+</script>
+</body>
+</html>
