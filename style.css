@@ -632,6 +632,37 @@ body {
   margin-bottom: 8px;
 }
 
+.backup-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 16px 0;
+}
+
+.backup-bar-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.backup-bar-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.backup-bar-btns .btn-primary {
+  margin-top: 0;
+  padding: 9px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .summary-card {
   background: var(--bg-elev);
   border: 1px solid var(--border);

@@ -103,17 +103,27 @@
   var store = loadStore();
   rebuildDerived();
 
+  function normalizeStore(s) {
+    if (!s || typeof s !== 'object') s = {};
+    if (!s.owned || typeof s.owned !== 'object') s.owned = {};
+    if (!s.owned.blades) s.owned.blades = {};
+    if (!s.owned.ratchets) s.owned.ratchets = {};
+    if (!s.owned.bits) s.owned.bits = {};
+    if (!Array.isArray(s.combos)) s.combos = [];
+    if (!s.customParts || typeof s.customParts !== 'object') s.customParts = {};
+    if (!Array.isArray(s.customParts.blades)) s.customParts.blades = [];
+    if (!Array.isArray(s.customParts.ratchets)) s.customParts.ratchets = [];
+    if (!Array.isArray(s.customParts.bits)) s.customParts.bits = [];
+    return s;
+  }
+
   function loadStore() {
     var s = null;
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (raw) s = JSON.parse(raw);
     } catch (e) { /* ignore */ }
-    if (!s) s = {};
-    if (!s.owned) s.owned = { blades: {}, ratchets: {}, bits: {} };
-    if (!s.combos) s.combos = [];
-    if (!s.customParts) s.customParts = { blades: [], ratchets: [], bits: [] };
-    return s;
+    return normalizeStore(s);
   }
 
   function saveStore() {
@@ -125,6 +135,82 @@
     if (store.owned[cat][id]) delete store.owned[cat][id];
     else store.owned[cat][id] = true;
     saveStore();
+  }
+
+  // ---------------- backup / restore ----------------
+  // No backend exists (static site) — a downloaded .json file is the closest
+  // thing to a real, portable, user-controlled "database file" this app can
+  // offer, and doubles as the way to move data between devices/browsers.
+  function backupSummary(s) {
+    var ownedCount = Object.keys(s.owned.blades).length + Object.keys(s.owned.ratchets).length + Object.keys(s.owned.bits).length;
+    return ownedCount + ' owned part' + (ownedCount === 1 ? '' : 's') + ', ' + s.combos.length + ' saved combo' + (s.combos.length === 1 ? '' : 's');
+  }
+
+  document.getElementById('btnExportBackup').addEventListener('click', function () {
+    var payload = { app: 'beymanager', backupVersion: 1, exportedAt: new Date().toISOString(), data: store };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = 'beymanager-backup-' + stamp + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+
+  var importInput = document.getElementById('importBackupInput');
+  document.getElementById('btnImportBackup').addEventListener('click', function () {
+    importInput.value = '';
+    importInput.click();
+  });
+  importInput.addEventListener('change', function () {
+    var file = importInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var parsed;
+      try { parsed = JSON.parse(reader.result); } catch (e) {
+        alert('That file isn\'t valid JSON — couldn\'t read it as a BeyManager backup.');
+        return;
+      }
+      var incoming = parsed && parsed.data ? parsed.data : parsed;
+      if (!incoming || !incoming.owned || !incoming.combos) {
+        alert('That file doesn\'t look like a BeyManager backup.');
+        return;
+      }
+      incoming = normalizeStore(incoming);
+      confirmImport(incoming);
+    };
+    reader.readAsText(file);
+  });
+
+  function confirmImport(incoming) {
+    document.getElementById('modalContent').innerHTML =
+      '<div class="modal-content">' +
+      '<h2 style="margin:0 0 10px">Restore this backup?</h2>' +
+      '<p class="hint">Backup file: <b>' + escapeHtml(backupSummary(incoming)) + '</b></p>' +
+      '<p class="hint">Your current data here: <b>' + escapeHtml(backupSummary(store)) + '</b></p>' +
+      '<p class="hint" style="color:var(--attack)">This replaces everything currently in this browser with the backup file. Export a backup first if you want to keep what\'s here.</p>' +
+      '<button class="modal-own-btn" id="importConfirmBtn" style="border-color:var(--attack);color:var(--attack)">Replace my data with this backup</button>' +
+      '<button class="modal-own-btn" id="importCancelBtn" style="margin-top:8px">Cancel</button>' +
+      '</div>';
+    document.getElementById('importConfirmBtn').addEventListener('click', function () {
+      store = incoming;
+      saveStore();
+      rebuildDerived();
+      populateSeriesFilter();
+      renderDatabase();
+      refreshComboSelects();
+      renderOwnershipSummary();
+      renderSavedCombos();
+      renderBestCombos();
+      renderSuggestedParts();
+      closeModal();
+    });
+    document.getElementById('importCancelBtn').addEventListener('click', closeModal);
+    modal.classList.add('open');
   }
 
   // ---------------- scoring engine ----------------

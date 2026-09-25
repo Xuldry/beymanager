@@ -15,7 +15,7 @@
   <div class="brand">
     <span class="brand-icon">◈</span>
     <div>
-      <h1>BeyManager <span class="build-tag">Build 1</span></h1>
+      <h1>BeyManager <span class="build-tag">Build 2</span></h1>
       <p class="tagline">Your Beyblade collection, organized</p>
     </div>
   </div>
@@ -32,6 +32,18 @@
   <section class="tab-panel active" id="panel-mybeys">
     <h3 class="section-title" style="margin-top:0">Your Collection at a Glance</h3>
     <div class="ownership-summary" id="ownershipSummary"></div>
+
+    <div class="backup-bar">
+      <div>
+        <div class="backup-bar-title">Backup &amp; Restore</div>
+        <p class="hint" style="margin:2px 0 0">Your data lives in this browser only. Export a backup file to move it to another device or browser, or to keep a copy somewhere safe.</p>
+      </div>
+      <div class="backup-bar-btns">
+        <button class="btn-primary" id="btnExportBackup">⬇ Export backup</button>
+        <button class="btn-primary" id="btnImportBackup">⬆ Import backup</button>
+        <input type="file" id="importBackupInput" accept="application/json,.json" style="display:none">
+      </div>
+    </div>
 
     <h3 class="section-title">Saved Combos</h3>
     <div class="saved-combos-controls" id="savedCombosControls"></div>
