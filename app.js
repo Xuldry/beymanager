@@ -1065,21 +1065,21 @@
   // ---------------- saved combos: filter + sort ----------------
   var savedCombosState = {
     blade: '', ratchet: '', bit: '', sort: 'total_desc',
-    deckMode: false, deckSelection: [], deckFlash: '', deckSaveOpen: false,
+    deckMode: false, deckSelection: [], deckFlash: '', deckSaveOpen: false, editingDeck: null,
     selectMode: false, bulkSelection: [], bulkDeleteConfirming: false
   };
 
   document.getElementById('btnDeckMode').addEventListener('click', function () {
     savedCombosState.deckMode = !savedCombosState.deckMode;
-    if (!savedCombosState.deckMode) { savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false; savedCombosState.deckFlash = ''; }
-    else { savedCombosState.selectMode = false; savedCombosState.bulkSelection = []; savedCombosState.bulkDeleteConfirming = false; }
+    if (!savedCombosState.deckMode) { savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false; savedCombosState.deckFlash = ''; savedCombosState.editingDeck = null; }
+    else { savedCombosState.selectMode = false; savedCombosState.bulkSelection = []; savedCombosState.bulkDeleteConfirming = false; savedCombosState.editingDeck = null; }
     renderSavedCombos();
   });
 
   document.getElementById('btnSelectCombos').addEventListener('click', function () {
     savedCombosState.selectMode = !savedCombosState.selectMode;
     if (!savedCombosState.selectMode) { savedCombosState.bulkSelection = []; savedCombosState.bulkDeleteConfirming = false; }
-    else { savedCombosState.deckMode = false; savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false; savedCombosState.deckFlash = ''; }
+    else { savedCombosState.deckMode = false; savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false; savedCombosState.deckFlash = ''; savedCombosState.editingDeck = null; }
     renderSavedCombos();
   });
 
@@ -1373,7 +1373,7 @@
         var name = input.value.trim() || ('Deck ' + (store.decks.length + 1));
         store.decks.push({ name: name, comboKeys: entries.map(comboEntryKey), savedAt: new Date().toISOString() });
         saveStore();
-        savedCombosState.deckMode = false; savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false;
+        savedCombosState.deckMode = false; savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false; savedCombosState.editingDeck = null;
         renderSavedCombos();
         renderSavedDecks();
       });
@@ -1395,6 +1395,14 @@
     var saveBtn = document.getElementById('deckSaveBtn');
     if (saveBtn) saveBtn.addEventListener('click', function () { savedCombosState.deckSaveOpen = true; renderDeckStickyBar(); });
     document.getElementById('deckCancelBtn').addEventListener('click', function () {
+      if (savedCombosState.editingDeck != null) {
+        // Clearing while editing a loaded deck cancels the edit entirely,
+        // rather than dropping you back into an empty "build a new one"
+        // session you didn't ask for.
+        savedCombosState.deckMode = false;
+        savedCombosState.deckSaveOpen = false;
+        savedCombosState.editingDeck = null;
+      }
       savedCombosState.deckSelection = [];
       renderSavedCombos();
     });
@@ -1437,6 +1445,7 @@
         savedCombosState.deckMode = true;
         savedCombosState.deckSelection = idxs;
         savedCombosState.deckSaveOpen = false;
+        savedCombosState.editingDeck = Number(btn.dataset.deckLoad);
         renderSavedCombos();
       });
     });
