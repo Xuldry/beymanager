@@ -850,6 +850,125 @@ body {
   color: var(--text-dim);
 }
 
+/* ---------------- tier list tab ---------------- */
+.tier-section-title {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tier-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.tier-rank {
+  font-weight: 700;
+  color: var(--accent);
+  width: 28px;
+  flex-shrink: 0;
+}
+
+.tier-name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.tier-score, .tier-trend {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.tier-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.tier-chip {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.meta-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meta-row-rank {
+  width: 28px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+}
+
+.meta-row-name { flex: 2; min-width: 0; }
+.meta-row-score { flex: 1; min-width: 0; }
+.meta-row-trend { flex: 1; min-width: 0; }
+
+.meta-row-remove {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.meta-row-remove:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---------------- toast ---------------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--bg-elev-2);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 200;
+  max-width: 90vw;
+  text-align: center;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 .part-modal {
   display: none;
   position: fixed;

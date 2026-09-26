@@ -53,8 +53,34 @@
     return rank <= 3 ? 'S' : rank <= 7 ? 'A' : 'B';
   }
 
+  // Your own manually-entered tier list (store.customMeta) always wins over
+  // the bundled data/meta.js snapshot when one exists — it's a full wholesale
+  // replacement, never a merge, so entering a new week's list automatically
+  // discards the previous one.
+  function getActiveMeta() {
+    return store.customMeta || window.META_DATA || null;
+  }
+
+  // BLADES/RATCHETS/BITS hold the same shared objects across every
+  // rebuildDerived() call (concat() doesn't clone them), so a part tagged by
+  // a previous meta snapshot but absent from the new one would otherwise keep
+  // showing last week's rank/tier forever. Clear every meta field first so a
+  // replacement snapshot — manual or bundled — always starts from a blank
+  // slate rather than merging onto whatever was there before.
+  function clearMetaFields(part) {
+    delete part.metaTier;
+    delete part.metaRank;
+    delete part.metaScore;
+    delete part.metaTrend;
+    delete part.metaUpdated;
+    delete part.metaNote;
+  }
+
   function applyMetaData() {
-    var meta = window.META_DATA;
+    BLADES.forEach(clearMetaFields);
+    RATCHETS.forEach(clearMetaFields);
+    BITS.forEach(clearMetaFields);
+    var meta = getActiveMeta();
     if (!meta) return;
     var updated = meta.metaUpdated;
 
@@ -169,10 +195,12 @@
   var store = loadStore();
   rebuildDerived();
 
-  // backupVersion 4: adds opponentProfiles (reusable Battle Log opponents),
-  // on top of backupVersion 3's decks and backupVersion 2's ordinalLists/
-  // measuredOverrides/learnedStats/weightOverrides/battles. Purely additive —
-  // an older backup still imports cleanly, it just starts with none saved.
+  // backupVersion 5: adds customMeta (your own manually-entered weekly tier
+  // list, overriding the bundled data/meta.js snapshot when present), on top
+  // of backupVersion 4's opponentProfiles, backupVersion 3's decks and
+  // backupVersion 2's ordinalLists/measuredOverrides/learnedStats/
+  // weightOverrides/battles. Purely additive — an older backup still imports
+  // cleanly, it just starts with none saved.
   function normalizeStore(s) {
     if (!s || typeof s !== 'object') s = {};
     if (!s.owned || typeof s.owned !== 'object') s.owned = {};
@@ -186,6 +214,8 @@
     if (!Array.isArray(s.customParts.blades)) s.customParts.blades = [];
     if (!Array.isArray(s.customParts.ratchets)) s.customParts.ratchets = [];
     if (!Array.isArray(s.customParts.bits)) s.customParts.bits = [];
+    if (s.customMeta !== null && typeof s.customMeta !== 'object') s.customMeta = null;
+    if (s.customMeta === undefined) s.customMeta = null;
     window.BeyScoring.ensureShape(s);
     return s;
   }
@@ -234,7 +264,7 @@
   }
 
   document.getElementById('btnExportBackup').addEventListener('click', function () {
-    var payload = { app: 'beymanager', backupVersion: 4, exportedAt: new Date().toISOString(), data: store };
+    var payload = { app: 'beymanager', backupVersion: 5, exportedAt: new Date().toISOString(), data: store };
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -315,6 +345,7 @@
     if (btn.dataset.tab === 'mybeys') { renderOwnershipSummary(); renderSavedCombos(); }
     if (btn.dataset.tab === 'builder') { refreshComboSelects(); renderRoleBoard(); renderTuningPanel(); }
     if (btn.dataset.tab === 'battles') { renderBattleEntry(); renderBattleLog(); renderBattleStats(); }
+    if (btn.dataset.tab === 'tierlist') { renderTierList(); }
   });
 
   // ---------------- database tab ----------------
@@ -1803,9 +1834,13 @@
     if (buyNextFilter === 'Meta') {
       items = buyNextMetaItems();
       emptyMsg = 'You already own every part in this week’s meta report, or no meta data has synced yet.';
-      if (window.META_DATA) {
-        headerHTML = '<p class="hint">From ' + window.META_DATA.metaSample.events + ' events / ' + window.META_DATA.metaSample.combos +
-          ' combos · week of ' + escapeHtml(window.META_DATA.metaWindow) + ' · synced ' + escapeHtml(window.META_DATA.metaUpdated) + '.</p>';
+      var activeMeta = getActiveMeta();
+      if (activeMeta) {
+        headerHTML = '<p class="hint">' + (activeMeta.metaSample ?
+          'From ' + activeMeta.metaSample.events + ' events / ' + activeMeta.metaSample.combos + ' combos · ' : '') +
+          (activeMeta.metaWindow ? 'week of ' + escapeHtml(activeMeta.metaWindow) + ' · ' : '') +
+          'updated ' + escapeHtml(activeMeta.metaUpdated) +
+          (activeMeta.metaSource === 'manual' ? ' · entered manually' : '') + '.</p>';
       }
     } else {
       items = buyNextRoleItems(buyNextFilter);
@@ -1821,6 +1856,179 @@
     container.querySelectorAll('.suggested-part-row').forEach(function (row) {
       row.addEventListener('click', function () { openPartModal(row.dataset.cat, row.dataset.id); });
     });
+  }
+
+  // ---------------- tier list tab ----------------
+  // Displays the active meta snapshot (your own manual entry if you've made
+  // one, otherwise the bundled data/meta.js) and lets you replace it wholesale
+  // with a fresh weekly entry — no scraping, you type in bbxhub.net's digest
+  // yourself. See getActiveMeta()/applyMetaData() above for how it's resolved.
+  function tierListRowHTML(row) {
+    return '<div class="tier-row">' +
+      '<span class="tier-rank">#' + row.rank + '</span>' +
+      '<span class="tier-name">' + escapeHtml(row.name) + '</span>' +
+      '<span class="tier-score">' + row.score + ' uses</span>' +
+      '<span class="tier-trend">' + escapeHtml(metaTrendPhrase(row.trend)) + '</span>' +
+      '</div>';
+  }
+
+  function tierChipListHTML(names) {
+    if (!names || !names.length) return '<p class="hint" style="margin:2px 0 14px">None entered this week.</p>';
+    return '<div class="tier-chip-list">' + names.map(function (n) {
+      return '<span class="tier-chip">' + escapeHtml(n) + '</span>';
+    }).join('') + '</div>';
+  }
+
+  function tierListSectionHTML(title, rows) {
+    if (!rows || !rows.length) return '';
+    return '<h4 class="tier-section-title">' + title + '</h4>' +
+      rows.slice().sort(function (a, b) { return a.rank - b.rank; }).map(tierListRowHTML).join('');
+  }
+
+  function renderTierList() {
+    var meta = getActiveMeta();
+    var hintEl = document.getElementById('tierListHint');
+    var board = document.getElementById('tierListBoard');
+    if (!meta) {
+      hintEl.textContent = 'No meta data yet — tap "Update meta" to enter this week’s tier list.';
+      board.innerHTML = '<div class="empty-state">Nothing entered yet.</div>';
+      return;
+    }
+    hintEl.textContent = 'Updated ' + meta.metaUpdated + (meta.metaWindow ? ' · week of ' + meta.metaWindow : '') +
+      ' · ' + (meta.metaSource === 'manual' ? 'entered manually' : 'bundled snapshot') + '.';
+    var html = tierListSectionHTML('Blades', meta.blades) +
+      tierListSectionHTML('Ratchets', meta.ratchets) +
+      tierListSectionHTML('Bits', meta.bits);
+    if (meta.cx) {
+      html += '<h4 class="tier-section-title">Lock Chips</h4>' + tierChipListHTML(meta.cx.lockChips);
+      html += '<h4 class="tier-section-title">Over Blades</h4>' + tierChipListHTML(meta.cx.overBlades);
+      html += '<h4 class="tier-section-title">Assist Blades</h4>' + tierChipListHTML(meta.cx.assistBlades);
+    }
+    board.innerHTML = html || '<div class="empty-state">Nothing entered yet.</div>';
+  }
+
+  function metaRowHTML(row) {
+    return '<div class="meta-row">' +
+      '<span class="meta-row-rank">#' + '</span>' +
+      '<input type="text" class="meta-row-name" placeholder="Name" value="' + (row ? escapeAttr(row.name) : '') + '">' +
+      '<input type="number" class="meta-row-score" placeholder="Uses" min="0" value="' + (row && row.score != null ? row.score : '') + '">' +
+      '<input type="text" class="meta-row-trend" placeholder="+1 / -2 / new" value="' + (row ? escapeAttr(row.trend || '') : '') + '">' +
+      '<button type="button" class="meta-row-remove" aria-label="Remove row">&times;</button>' +
+      '</div>';
+  }
+
+  function renumberMetaRows(container) {
+    container.querySelectorAll('.meta-row-rank').forEach(function (el, i) { el.textContent = '#' + (i + 1); });
+  }
+
+  document.getElementById('btnUpdateMeta').addEventListener('click', openMetaEntryModal);
+
+  function openMetaEntryModal() {
+    var meta = getActiveMeta();
+    function rowsHTML(rows) {
+      var list = (rows && rows.length) ? rows.slice().sort(function (a, b) { return a.rank - b.rank; }) : [null, null, null, null, null];
+      return list.map(metaRowHTML).join('');
+    }
+    function cxText(names) { return (names || []).join('\n'); }
+
+    document.getElementById('modalContent').innerHTML =
+      '<div class="modal-content">' +
+      '<h2 style="margin:0 0 10px">Update this week’s meta</h2>' +
+      '<p class="hint">Enter parts top-to-bottom in rank order — position becomes the rank. This replaces the current meta list entirely, so leave a section blank to clear it.</p>' +
+      '<h4 class="tier-section-title">Blades</h4>' +
+      '<div id="metaRows-blades" class="meta-rows">' + rowsHTML(meta && meta.blades) + '</div>' +
+      '<button type="button" class="btn-secondary meta-add-row" data-section="blades" style="width:auto;min-height:32px;padding:4px 12px;margin-bottom:14px">+ Add blade</button>' +
+      '<h4 class="tier-section-title">Ratchets</h4>' +
+      '<p class="hint" style="margin:2px 0 6px">Use the exact ratchet code, e.g. 1-60, 9-70.</p>' +
+      '<div id="metaRows-ratchets" class="meta-rows">' + rowsHTML(meta && meta.ratchets) + '</div>' +
+      '<button type="button" class="btn-secondary meta-add-row" data-section="ratchets" style="width:auto;min-height:32px;padding:4px 12px;margin-bottom:14px">+ Add ratchet</button>' +
+      '<h4 class="tier-section-title">Bits</h4>' +
+      '<div id="metaRows-bits" class="meta-rows">' + rowsHTML(meta && meta.bits) + '</div>' +
+      '<button type="button" class="btn-secondary meta-add-row" data-section="bits" style="width:auto;min-height:32px;padding:4px 12px;margin-bottom:14px">+ Add bit</button>' +
+      '<h4 class="tier-section-title">Lock Chips</h4>' +
+      '<p class="hint" style="margin:2px 0 6px">One name per line — unranked, just this week’s notable picks.</p>' +
+      '<textarea id="metaCX-lockChips" rows="2">' + escapeHtml(cxText(meta && meta.cx && meta.cx.lockChips)) + '</textarea>' +
+      '<h4 class="tier-section-title">Over Blades</h4>' +
+      '<textarea id="metaCX-overBlades" rows="2">' + escapeHtml(cxText(meta && meta.cx && meta.cx.overBlades)) + '</textarea>' +
+      '<h4 class="tier-section-title">Assist Blades</h4>' +
+      '<textarea id="metaCX-assistBlades" rows="2">' + escapeHtml(cxText(meta && meta.cx && meta.cx.assistBlades)) + '</textarea>' +
+      '<button class="btn-primary" id="metaSubmit" style="margin-top:14px">Save this week’s meta</button>' +
+      '</div>';
+
+    ['blades', 'ratchets', 'bits'].forEach(function (section) {
+      var container = document.getElementById('metaRows-' + section);
+      document.querySelector('.meta-add-row[data-section="' + section + '"]').addEventListener('click', function () {
+        container.insertAdjacentHTML('beforeend', metaRowHTML(null));
+        renumberMetaRows(container);
+      });
+      container.addEventListener('click', function (e) {
+        var rmBtn = e.target.closest('.meta-row-remove');
+        if (!rmBtn) return;
+        rmBtn.closest('.meta-row').remove();
+        renumberMetaRows(container);
+      });
+      renumberMetaRows(container);
+    });
+
+    document.getElementById('metaSubmit').addEventListener('click', submitMetaEntry);
+    modal.classList.add('open');
+  }
+
+  function collectMetaRows(section) {
+    var rows = [];
+    document.querySelectorAll('#metaRows-' + section + ' .meta-row').forEach(function (row) {
+      var name = row.querySelector('.meta-row-name').value.trim();
+      if (!name) return;
+      var scoreVal = parseInt(row.querySelector('.meta-row-score').value, 10);
+      var trend = row.querySelector('.meta-row-trend').value.trim();
+      rows.push({ name: name, rank: rows.length + 1, score: isNaN(scoreVal) ? 0 : scoreVal, trend: trend || '0' });
+    });
+    return rows;
+  }
+
+  function collectCXNames(key) {
+    return document.getElementById('metaCX-' + key).value.split('\n')
+      .map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function submitMetaEntry() {
+    var blades = collectMetaRows('blades');
+    var ratchets = collectMetaRows('ratchets');
+    var bits = collectMetaRows('bits');
+    var cx = {
+      lockChips: collectCXNames('lockChips'),
+      overBlades: collectCXNames('overBlades'),
+      assistBlades: collectCXNames('assistBlades')
+    };
+    store.customMeta = {
+      metaSource: 'manual',
+      metaUpdated: new Date().toISOString().slice(0, 10),
+      blades: blades, ratchets: ratchets, bits: bits, cx: cx
+    };
+    saveStore();
+    rebuildDerived();
+    renderTierList();
+    closeModal();
+    var total = blades.length + ratchets.length + bits.length + cx.lockChips.length + cx.overBlades.length + cx.assistBlades.length;
+    showToast(total ? ('This week’s meta updated — ' + total + ' entries saved.') : 'Meta list cleared.');
+  }
+
+  // ---------------- toast notifications ----------------
+  var toastTimer = null;
+  function showToast(msg) {
+    var el = document.getElementById('toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'toast';
+      el.className = 'toast';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.remove('show');
+    void el.offsetWidth; // restart the fade animation if a toast is already showing
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 3200);
   }
 
   // ---------------- provenance explanation sheet ----------------

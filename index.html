@@ -15,7 +15,7 @@
   <div class="brand">
     <span class="brand-icon">◈</span>
     <div>
-      <h1>BeyManager <span class="build-tag">Build 6.21</span></h1>
+      <h1>BeyManager <span class="build-tag">Build 7.00</span></h1>
       <p class="tagline">Your Beyblade collection, organized</p>
     </div>
   </div>
@@ -24,6 +24,7 @@
     <button class="tab-btn" data-tab="builder">Builder</button>
     <button class="tab-btn" data-tab="battles">Battles</button>
     <button class="tab-btn" data-tab="database">Database</button>
+    <button class="tab-btn" data-tab="tierlist">Tier List</button>
   </nav>
 </header>
 
@@ -168,6 +169,16 @@
     <p class="hint" id="missingPartsHint">Bought a full set? "+ Add a bey I bought" marks all its parts as owned in one tap. Can't find a bey at all? Hasbro sells US-exclusive "retool" releases (new name, same or modified parts) that our source database hasn't catalogued yet — tap "+ Add a part I own" to add it yourself.</p>
 
     <div class="card-grid" id="partGrid"></div>
+  </section>
+
+  <!-- TIER LIST TAB -->
+  <section class="tab-panel" id="panel-tierlist">
+    <div class="section-title-row">
+      <h3 class="section-title" style="margin:0">This Week's Meta</h3>
+      <button class="btn-secondary" id="btnUpdateMeta" style="width:auto;min-height:36px;padding:6px 12px">Update meta</button>
+    </div>
+    <p class="hint" id="tierListHint"></p>
+    <div id="tierListBoard"></div>
   </section>
 
 </main>
