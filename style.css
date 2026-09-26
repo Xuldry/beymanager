@@ -555,6 +555,10 @@ body {
 .cc-stat.sta { color: var(--stamina); }
 .cc-stat.total { color: var(--text); }
 
+.combo-chip-v2 {
+  cursor: pointer;
+}
+
 .cc-wl {
   display: flex;
   align-items: center;
@@ -570,25 +574,42 @@ body {
   color: var(--text-dim);
 }
 
-.wl-btns {
-  display: flex;
-  gap: 6px;
+.wl-record {
+  font-size: 12px;
+  color: var(--text-dim);
 }
 
-.wl-btns button {
+.wl-record .wl-win { color: var(--stamina); }
+.wl-record .wl-loss { color: var(--attack); }
+
+.wl-tap-hint {
   font-size: 11px;
-  padding: 5px 9px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-elev-2);
-  color: var(--text);
-  cursor: pointer;
+  color: var(--text-dim);
+  opacity: 0.6;
 }
 
-.wl-btns button[data-win] { border-color: var(--stamina); color: var(--stamina); }
-.wl-btns button[data-draw] { border-color: var(--balance); color: var(--balance); }
-.wl-btns button[data-loss] { border-color: var(--attack); color: var(--attack); }
-.wl-btns button.wl-reset { color: var(--text-dim); }
+.combo-wl-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.combo-wl-summary .wl-win { color: var(--stamina); }
+.combo-wl-summary .wl-loss { color: var(--attack); }
+.combo-wl-summary .wl-pct { color: var(--text-dim); font-weight: 400; font-size: 12px; }
+
+.combo-detail-battles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.combo-detail-battles .wl-win { color: var(--stamina); }
+.combo-detail-battles .wl-loss { color: var(--attack); }
 
 .btn-save-combo {
   font-size: 11px;

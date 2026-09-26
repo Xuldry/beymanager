@@ -215,8 +215,11 @@
       refreshComboSelects();
       renderOwnershipSummary();
       renderSavedCombos();
-      renderBestCombos();
+      renderRoleBoard();
       renderSuggestedParts();
+      renderBattleEntry();
+      renderBattleLog();
+      renderBattleStats();
       closeModal();
     });
     document.getElementById('importCancelBtn').addEventListener('click', closeModal);
@@ -902,10 +905,31 @@
       '</div>';
   }
 
+  // Win/loss record for a saved combo is derived entirely from the Battle
+  // Log (matched by parts via comboEntryKey), not from any manually-clicked
+  // counter — the Battle Log is the single source of truth for match results.
+  function comboMatchesEntry(comboSnapshot, entry) {
+    return comboEntryKey(comboSnapshot) === comboEntryKey(entry);
+  }
+
+  function battlesForCombo(entry) {
+    var rows = [];
+    store.battles.forEach(function (b) {
+      var isA = comboMatchesEntry(b.comboA, entry);
+      var isB = !isA && comboMatchesEntry(b.comboB, entry);
+      if (!isA && !isB) return;
+      var won = (isA && b.winner === 'A') || (isB && b.winner === 'B');
+      rows.push({ battle: b, won: won, opponent: isA ? b.comboB : b.comboA });
+    });
+    rows.reverse();
+    return rows;
+  }
+
   function winRateOf(entry) {
-    var w = entry.wins || 0, l = entry.losses || 0, d = entry.draws || 0;
-    var total = w + l + d;
-    return { wins: w, losses: l, draws: d, total: total, pct: total ? Math.round((w / total) * 100) : null };
+    var wins = 0, losses = 0;
+    battlesForCombo(entry).forEach(function (row) { if (row.won) wins++; else losses++; });
+    var total = wins + losses;
+    return { wins: wins, losses: losses, total: total, pct: total ? Math.round((wins / total) * 100) : null };
   }
 
   // ---------------- saved combos: filter + sort ----------------
@@ -989,7 +1013,9 @@
 
     container.innerHTML = rows.map(function (row) {
       var wl = row.wl;
-      var wlLabel = wl.total ? (wl.wins + 'W - ' + wl.losses + 'L - ' + wl.draws + 'D · ' + wl.pct + '% win rate') : 'No matches logged yet';
+      var wlLabel = wl.total
+        ? '<span class="wl-record"><b class="wl-win">' + wl.wins + 'W</b> · <b class="wl-loss">' + wl.losses + 'L</b> · ' + wl.pct + '%</span>'
+        : '<span class="wl-label">No battles logged yet</span>';
       var autoLabel = comboLabel(row.entry);
       var displayName = row.entry.name || autoLabel;
       return '<div class="combo-chip-v2" data-idx="' + row.idx + '">' +
@@ -1008,13 +1034,8 @@
             '</div>' +
             comboStatChipsHTML(row.stats) +
             '<div class="cc-wl">' +
-              '<span class="wl-label">' + wlLabel + '</span>' +
-              '<span class="wl-btns">' +
-                '<button data-win="' + row.idx + '">+ Win</button>' +
-                '<button data-draw="' + row.idx + '">+ Draw</button>' +
-                '<button data-loss="' + row.idx + '">+ Loss</button>' +
-                (wl.total ? '<button data-resetwl="' + row.idx + '" class="wl-reset">reset</button>' : '') +
-              '</span>' +
+              wlLabel +
+              '<span class="wl-tap-hint">Battle log ›</span>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -1022,7 +1043,8 @@
     }).join('');
 
     container.querySelectorAll('[data-del]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         if (btn.dataset.confirming === '1') {
           store.combos.splice(Number(btn.dataset.del), 1);
           saveStore();
@@ -1041,43 +1063,67 @@
         }, 2500);
       });
     });
-    container.querySelectorAll('[data-win]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var e = store.combos[Number(btn.dataset.win)];
-        e.wins = (e.wins || 0) + 1;
-        saveStore();
-        renderSavedCombos();
-      });
-    });
-    container.querySelectorAll('[data-loss]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var e = store.combos[Number(btn.dataset.loss)];
-        e.losses = (e.losses || 0) + 1;
-        saveStore();
-        renderSavedCombos();
-      });
-    });
-    container.querySelectorAll('[data-draw]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var e = store.combos[Number(btn.dataset.draw)];
-        e.draws = (e.draws || 0) + 1;
-        saveStore();
-        renderSavedCombos();
-      });
-    });
-    container.querySelectorAll('[data-resetwl]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var e = store.combos[Number(btn.dataset.resetwl)];
-        e.wins = 0; e.losses = 0; e.draws = 0;
-        saveStore();
-        renderSavedCombos();
-      });
-    });
     container.querySelectorAll('[data-rename]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         startRenameCombo(Number(btn.dataset.rename));
       });
     });
+    container.querySelectorAll('.combo-chip-v2').forEach(function (card) {
+      card.addEventListener('click', function (e) {
+        if (e.target.closest('[data-del],[data-rename],.combo-rename-input')) return;
+        openComboModal(Number(card.dataset.idx));
+      });
+    });
+  }
+
+  // ---------------- combo detail modal: parts, record, per-combo battle log ----------------
+  function openComboModal(idx) {
+    var entry = store.combos[idx];
+    if (!entry) return;
+    var stats = comboScoreOf(entry);
+    var wl = winRateOf(entry);
+    var autoLabel = comboLabel(entry);
+    var displayName = entry.name || autoLabel;
+
+    var partRows = [];
+    if (entry.isCX) {
+      partRows.push(['Lock Chip', entry.lock && byId.blades[entry.lock] ? partDisplayName('blades', byId.blades[entry.lock]) : '—']);
+      partRows.push(['Main Blade', entry.main && byId.blades[entry.main] ? partDisplayName('blades', byId.blades[entry.main]) : '—']);
+      partRows.push(['Assist Blade', entry.assist && byId.blades[entry.assist] ? partDisplayName('blades', byId.blades[entry.assist]) : '—']);
+    } else {
+      partRows.push(['Blade', entry.blade && byId.blades[entry.blade] ? partDisplayName('blades', byId.blades[entry.blade]) : '—']);
+    }
+    partRows.push(['Ratchet', entry.ratchet || '—']);
+    partRows.push(['Bit', bitName(entry.bit)]);
+
+    var wlHTML = wl.total
+      ? '<div class="combo-wl-summary"><span class="wl-win">' + wl.wins + 'W</span><span class="wl-loss">' + wl.losses + 'L</span><span class="wl-pct">' + wl.pct + '% win rate</span></div>'
+      : '<div class="empty-state">No battles logged yet for this combo.</div>';
+
+    var battleRows = battlesForCombo(entry);
+    var battleLogHTML = battleRows.length ? battleRows.map(function (row) {
+      var b = row.battle;
+      var oppLabel = row.opponent.name || comboLabel(row.opponent);
+      var pts = { spinout: 1, burst: 2, xtreme: 3 }[b.finish];
+      var when = new Date(b.date).toLocaleDateString();
+      return '<div class="battle-log-row"><div class="blr-top"><span>' + (row.won ? 'Won vs ' : 'Lost to ') + escapeHtml(oppLabel) + '</span>' +
+        '<span class="' + (row.won ? 'wl-win' : 'wl-loss') + '">' + (row.won ? '+' : '−') + pts + ' pt</span></div>' +
+        '<div class="blr-meta">' + capitalize(b.finish) + ' · ' + when + '</div></div>';
+    }).join('') : '';
+
+    document.getElementById('modalContent').innerHTML =
+      '<div class="modal-content">' +
+      '<img src="' + comboRepresentativeImage(entry) + '" alt="" onerror="this.style.opacity=0.2">' +
+      '<h2 style="margin:0 0 4px">' + escapeHtml(displayName) + '</h2>' +
+      (entry.name ? '<p class="hint" style="margin:0 0 10px">' + escapeHtml(autoLabel) + '</p>' : '') +
+      comboStatChipsHTML(stats) +
+      partRows.map(function (r) { return '<div class="modal-spec-row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>'; }).join('') +
+      '<div class="tuning-block-title" style="margin-top:14px">Battle record</div>' +
+      wlHTML +
+      (battleRows.length ? '<div class="tuning-block-title" style="margin-top:14px">Battle log (' + battleRows.length + ')</div><div class="combo-detail-battles">' + battleLogHTML + '</div>' : '') +
+      '</div>';
+    modal.classList.add('open');
   }
 
   function startRenameCombo(idx) {
@@ -1566,7 +1612,7 @@
     if (flash) flash.textContent = '✓ Battle logged';
     setTimeout(function () {
       battleEntryState = { a: null, b: null, winner: null, finish: null };
-      renderBattleEntry(); renderBattleLog(); renderBattleStats();
+      renderBattleEntry(); renderBattleLog(); renderBattleStats(); renderSavedCombos();
     }, 900);
     return true;
   }
