@@ -1104,7 +1104,7 @@
     var battleRows = battlesForCombo(entry);
     var battleLogHTML = battleRows.length ? battleRows.map(function (row) {
       var b = row.battle;
-      var oppLabel = row.opponent.name || comboLabel(row.opponent);
+      var oppLabel = (row.opponent.isOpponent ? 'Opp: ' : '') + (row.opponent.name || comboLabel(row.opponent));
       var pts = { spinout: 1, burst: 2, xtreme: 3 }[b.finish];
       var when = new Date(b.date).toLocaleDateString();
       return '<div class="battle-log-row"><div class="blr-top"><span>' + (row.won ? 'Won vs ' : 'Lost to ') + escapeHtml(oppLabel) + '</span>' +
@@ -1520,7 +1520,17 @@
   }
 
   // ---------------- battle log: entry (mobile-priority), log, stats ----------------
-  var battleEntryState = { a: null, b: null, winner: null, finish: null };
+  // A slot (battleEntryState.a/b) is either a plain number (index into
+  // store.combos, "mine") or { isOpponent: true, entry } for an ad-hoc combo
+  // built on the fly for a bey you don't own/haven't saved — you're rarely
+  // ever battling *only* your own beys, so the opponent's side needs to be
+  // loggable without first saving it as one of your own combos.
+  var battleEntryState = { a: null, b: null, winner: null, finish: null, opponentPickerOpen: false };
+
+  function battleSlotEntry(slot) {
+    if (slot == null) return null;
+    return typeof slot === 'number' ? store.combos[slot] : slot.entry;
+  }
 
   function comboBladeIdsLocal(combo) {
     return combo.isCX ? [combo.lock, combo.main, combo.assist].filter(Boolean) : [combo.blade].filter(Boolean);
@@ -1538,22 +1548,93 @@
     return resolved[field] ? resolved[field].value : null;
   }
 
+  function opponentEntryCardHTML(letter) {
+    var slot = battleEntryState[letter];
+    if (slot == null || typeof slot === 'number') return '';
+    var entry = slot.entry;
+    var color = letter === 'a' ? 'var(--defense)' : 'var(--attack)';
+    return '<button class="battle-combo-card is-opponent picked-' + letter + '" data-clear-opp="' + letter + '">' +
+      '<span class="battle-picked-label" style="color:' + color + '">Combo ' + letter.toUpperCase() + '</span>' +
+      '<span class="opp-tag">Opponent</span>' + escapeHtml(entry.name || comboLabel(entry)) +
+      '</button>';
+  }
+
+  function opponentPickerHTML() {
+    if (!battleEntryState.opponentPickerOpen) return '';
+    return '<div class="combo-picker opponent-picker">' +
+      '<label class="owned-toggle standalone"><input type="checkbox" id="oppCXToggle"> CX combo (Lock/Main/Assist)</label>' +
+      '<div class="picker-group" id="oppStdGroup"><label>Blade</label><select id="oppBlade">' + optionsHTML(STANDARD_BLADES, 'blades', false) + '</select></div>' +
+      '<div class="picker-group cx-only" id="oppCXGroup" style="display:none">' +
+        '<label>Lock Chip</label><select id="oppLock">' + optionsHTML(CX_LOCKCHIPS, 'blades', false) + '</select>' +
+        '<label>Main Blade</label><select id="oppMain">' + optionsHTML(CX_MAINBLADES, 'blades', false) + '</select>' +
+        '<label>Assist Blade</label><select id="oppAssist">' + optionsHTML(CX_ASSISTBLADES, 'blades', false) + '</select>' +
+      '</div>' +
+      '<div class="picker-group"><label>Ratchet</label><select id="oppRatchet">' + optionsHTML(RATCHETS, 'ratchets', false) + '</select></div>' +
+      '<div class="picker-group"><label>Bit</label><select id="oppBit">' + optionsHTML(BITS, 'bits', false) + '</select></div>' +
+      '<div class="picker-group"><label>Opponent name (optional)</label><input type="text" id="oppName" maxlength="40" placeholder="e.g. Marco’s Deathscyther"></div>' +
+      '<p class="hint" id="oppWarning" style="color:var(--attack);display:none">Pick at least a blade (or Lock/Main/Assist for CX), a ratchet, and a bit.</p>' +
+      '<div class="opponent-picker-btns">' +
+        '<button class="btn-primary" id="oppUseBtn">Use this combo</button>' +
+        '<button class="btn-secondary" id="oppCancelBtn">Cancel</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function wireOpponentPicker() {
+    if (!battleEntryState.opponentPickerOpen) return;
+    var oppCX = document.getElementById('oppCXToggle');
+    oppCX.addEventListener('change', function () {
+      document.getElementById('oppStdGroup').style.display = oppCX.checked ? 'none' : '';
+      document.getElementById('oppCXGroup').style.display = oppCX.checked ? '' : 'none';
+    });
+    document.getElementById('oppCancelBtn').addEventListener('click', function () {
+      battleEntryState.opponentPickerOpen = false;
+      renderBattleEntry();
+    });
+    document.getElementById('oppUseBtn').addEventListener('click', function () {
+      var isCX = oppCX.checked;
+      var ratchet = document.getElementById('oppRatchet').value;
+      var bit = document.getElementById('oppBit').value;
+      var entry;
+      if (isCX) {
+        var lock = document.getElementById('oppLock').value;
+        var main = document.getElementById('oppMain').value;
+        var assist = document.getElementById('oppAssist').value;
+        if (!(lock || main || assist) || !ratchet || !bit) { document.getElementById('oppWarning').style.display = ''; return; }
+        entry = { isCX: true, lock: lock || undefined, main: main || undefined, assist: assist || undefined, ratchet: ratchet, bit: bit };
+      } else {
+        var blade = document.getElementById('oppBlade').value;
+        if (!blade || !ratchet || !bit) { document.getElementById('oppWarning').style.display = ''; return; }
+        entry = { isCX: false, blade: blade, ratchet: ratchet, bit: bit };
+      }
+      var name = document.getElementById('oppName').value.trim();
+      if (name) entry.name = name;
+      entry.isOpponent = true;
+      var slot = { isOpponent: true, entry: entry };
+      if (battleEntryState.a == null) battleEntryState.a = slot;
+      else if (battleEntryState.b == null) battleEntryState.b = slot;
+      else { battleEntryState.a = slot; battleEntryState.b = null; }
+      battleEntryState.opponentPickerOpen = false;
+      battleEntryState.winner = null; battleEntryState.finish = null;
+      renderBattleEntry();
+    });
+  }
+
   function renderBattleEntry() {
     var container = document.getElementById('battleEntry');
-    if (!store.combos.length) {
-      container.innerHTML = '<h3 class="battle-section-title" style="margin-top:0">Log a Battle</h3><div class="empty-state">Save some combos first (Builder tab) to log battles between them.</div>';
-      return;
-    }
     var cards = store.combos.map(function (entry, idx) {
       var cls = battleEntryState.a === idx ? 'picked-a' : battleEntryState.b === idx ? 'picked-b' : '';
       var tag = battleEntryState.a === idx ? '<span class="battle-picked-label" style="color:var(--defense)">Combo A</span>' :
         battleEntryState.b === idx ? '<span class="battle-picked-label" style="color:var(--attack)">Combo B</span>' : '';
       return '<button class="battle-combo-card ' + cls + '" data-pick="' + idx + '">' + tag + escapeHtml(entry.name || comboLabel(entry)) + '</button>';
-    }).join('');
+    }).join('') + opponentEntryCardHTML('a') + opponentEntryCardHTML('b') +
+      '<button class="battle-combo-card add-opponent-tile" data-add-opponent>+ Opponent’s combo</button>';
 
-    var ready = battleEntryState.a != null && battleEntryState.b != null;
-    var aLabel = ready ? (store.combos[battleEntryState.a].name || comboLabel(store.combos[battleEntryState.a])) : 'Combo A';
-    var bLabel = ready ? (store.combos[battleEntryState.b].name || comboLabel(store.combos[battleEntryState.b])) : 'Combo B';
+    var aEntry = battleSlotEntry(battleEntryState.a);
+    var bEntry = battleSlotEntry(battleEntryState.b);
+    var ready = aEntry != null && bEntry != null;
+    var aLabel = aEntry ? (aEntry.name || comboLabel(aEntry)) : 'Combo A';
+    var bLabel = bEntry ? (bEntry.name || comboLabel(bEntry)) : 'Combo B';
 
     var winnerHTML = '<div class="winner-btns">' +
       '<button class="winner-btn' + (battleEntryState.winner === 'A' ? ' selected win-a' : '') + '" data-winner="A"' + (ready ? '' : ' disabled') + '>' + escapeHtml(aLabel) + '</button>' +
@@ -1565,14 +1646,16 @@
         return '<button class="finish-btn' + (battleEntryState.finish === f[0] ? ' selected' : '') + '" data-finish="' + f[0] + '"' + (ready ? '' : ' disabled') + '>' + capitalize(f[0]) + '<span class="pts">' + f[1] + ' pt</span></button>';
       }).join('') + '</div>';
 
-    var changedAuto = ready ? window.BeyScoring.detectChangedPart(store.combos[battleEntryState.a], store.combos[battleEntryState.b]) : null;
+    var changedAuto = ready ? window.BeyScoring.detectChangedPart(aEntry, bEntry) : null;
     var changedLabel = changedAuto ? partDisplayName(changedAuto.cat, byId[changedAuto.cat][changedAuto.id] || { id: changedAuto.id }) : null;
     var changedHTML = '<details class="battle-changed-part"><summary>Changed part' + (changedLabel ? ' (auto: ' + escapeHtml(changedLabel) + ')' : ' (none detected — combos differ by more than one part)') + '</summary>' +
       '<p class="hint">If A and B differ by exactly one part, credit for the result goes to that part specifically instead of being spread across the whole combo.</p></details>';
 
     container.innerHTML =
       '<h3 class="battle-section-title" style="margin-top:0">1. Pick two combos</h3>' +
+      (store.combos.length ? '' : '<p class="hint">No saved combos yet — you can still log a battle using two opponent combos below, or save one of your own first (Builder tab).</p>') +
       '<div class="battle-combo-grid">' + cards + '</div>' +
+      opponentPickerHTML() +
       '<h3 class="battle-section-title">2. Winner</h3>' + winnerHTML +
       '<h3 class="battle-section-title">3. Finish</h3>' + finishHTML +
       changedHTML +
@@ -1587,8 +1670,21 @@
         else if (battleEntryState.b == null) battleEntryState.b = idx;
         else { battleEntryState.a = idx; battleEntryState.b = null; }
         battleEntryState.winner = null; battleEntryState.finish = null;
+        battleEntryState.opponentPickerOpen = false;
         renderBattleEntry();
       });
+    });
+    container.querySelectorAll('[data-clear-opp]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        battleEntryState[btn.dataset.clearOpp] = null;
+        battleEntryState.winner = null; battleEntryState.finish = null;
+        renderBattleEntry();
+      });
+    });
+    var addOppBtn = container.querySelector('[data-add-opponent]');
+    if (addOppBtn) addOppBtn.addEventListener('click', function () {
+      battleEntryState.opponentPickerOpen = !battleEntryState.opponentPickerOpen;
+      renderBattleEntry();
     });
     container.querySelectorAll('[data-winner]').forEach(function (btn) {
       btn.addEventListener('click', function () { battleEntryState.winner = btn.dataset.winner; if (!maybeSubmitBattle()) renderBattleEntry(); });
@@ -1596,12 +1692,13 @@
     container.querySelectorAll('[data-finish]').forEach(function (btn) {
       btn.addEventListener('click', function () { battleEntryState.finish = btn.dataset.finish; if (!maybeSubmitBattle()) renderBattleEntry(); });
     });
+    wireOpponentPicker();
   }
 
   function maybeSubmitBattle() {
-    if (battleEntryState.a == null || battleEntryState.b == null || !battleEntryState.winner || !battleEntryState.finish) return false;
-    var comboA = store.combos[battleEntryState.a];
-    var comboB = store.combos[battleEntryState.b];
+    var comboA = battleSlotEntry(battleEntryState.a);
+    var comboB = battleSlotEntry(battleEntryState.b);
+    if (!comboA || !comboB || !battleEntryState.winner || !battleEntryState.finish) return false;
     var changed = window.BeyScoring.detectChangedPart(comboA, comboB);
     var battle = { comboA: comboA, comboB: comboB, winner: battleEntryState.winner, finish: battleEntryState.finish, changedPart: changed, date: new Date().toISOString() };
     store.battles.push(battle);
@@ -1611,7 +1708,7 @@
     var flash = document.getElementById('battleSavedFlash');
     if (flash) flash.textContent = '✓ Battle logged';
     setTimeout(function () {
-      battleEntryState = { a: null, b: null, winner: null, finish: null };
+      battleEntryState = { a: null, b: null, winner: null, finish: null, opponentPickerOpen: false };
       renderBattleEntry(); renderBattleLog(); renderBattleStats(); renderSavedCombos();
     }, 900);
     return true;
@@ -1624,8 +1721,8 @@
     container.innerHTML = recent.map(function (b) {
       var winnerCombo = b.winner === 'A' ? b.comboA : b.comboB;
       var loserCombo = b.winner === 'A' ? b.comboB : b.comboA;
-      var winnerLabel = winnerCombo.name || comboLabel(winnerCombo);
-      var loserLabel = loserCombo.name || comboLabel(loserCombo);
+      var winnerLabel = (winnerCombo.isOpponent ? 'Opp: ' : '') + (winnerCombo.name || comboLabel(winnerCombo));
+      var loserLabel = (loserCombo.isOpponent ? 'Opp: ' : '') + (loserCombo.name || comboLabel(loserCombo));
       var pts = { spinout: 1, burst: 2, xtreme: 3 }[b.finish];
       var when = new Date(b.date).toLocaleDateString();
       return '<div class="battle-log-row"><div class="blr-top"><span>' + escapeHtml(winnerLabel) + ' beat ' + escapeHtml(loserLabel) + '</span><span>' + pts + ' pt</span></div>' +

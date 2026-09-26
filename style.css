@@ -308,6 +308,7 @@ body {
   color: white;
   border: none;
   padding: 10px 14px;
+  min-height: 44px;
   border-radius: var(--radius);
   font-weight: 600;
   cursor: pointer;
@@ -1118,6 +1119,54 @@ body {
 
 .battle-combo-card.picked-a { border-color: var(--defense); background: rgba(77,158,255,0.12); }
 .battle-combo-card.picked-b { border-color: var(--attack); background: rgba(255,91,91,0.12); }
+
+.battle-combo-card.is-opponent { border-style: dashed; }
+
+.opp-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.battle-combo-card.add-opponent-tile {
+  border-style: dashed;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.opponent-picker {
+  margin: -4px 0 14px;
+}
+
+.opponent-picker-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.btn-secondary {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-dim);
+  font-weight: 600;
+  cursor: pointer;
+}
 
 .battle-picked-label {
   font-size: 11px;
