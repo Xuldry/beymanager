@@ -530,9 +530,28 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 10px 12px;
+  cursor: pointer;
 }
+.saved-deck-row:hover { border-color: var(--accent); }
 .deck-row-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .deck-row-name { font-weight: 700; font-size: 13px; }
+
+.deck-build-row {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.deck-build-row:hover { border-color: var(--accent); }
+.deck-build-row.deck-build-missing {
+  cursor: default;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+}
+.deck-build-row.deck-build-missing:hover { border-color: var(--border); }
 
 .combo-chip-v2 {
   background: var(--bg-elev);

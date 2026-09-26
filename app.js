@@ -1395,17 +1395,25 @@
       var names = entries.map(function (e) { return e ? (e.name || comboLabel(e)) : '⚠ combo deleted'; });
       var roles = entries.filter(Boolean).map(function (e) { var r = comboDominantRole(e); return r ? capitalize(r) : '?'; });
       var clash = deckRatchetClash(entries.filter(Boolean));
+      var thumbEntry = entries.filter(Boolean)[0];
+      var thumbSrc = thumbEntry ? comboRepresentativeImage(thumbEntry) : PLACEHOLDER_IMG;
       return '<div class="saved-deck-row" data-deck="' + di + '">' +
-        '<div class="deck-row-top"><span class="deck-row-name">' + escapeHtml(deck.name) + '</span>' +
-          '<span class="cc-top-btns"><button class="btn-icon" data-deck-load="' + di + '" title="Load">⬆</button><button class="btn-del" data-deck-del="' + di + '" title="Delete">&times;</button></span>' +
+        '<div class="cc-row">' +
+          '<img class="cc-thumb" src="' + thumbSrc + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
+          '<div class="cc-body">' +
+            '<div class="deck-row-top"><span class="deck-row-name">' + escapeHtml(deck.name) + '</span>' +
+              '<span class="cc-top-btns"><button class="btn-icon" data-deck-load="' + di + '" title="Load">⬆</button><button class="btn-del" data-deck-del="' + di + '" title="Delete">&times;</button></span>' +
+            '</div>' +
+            '<div class="deck-names">' + names.map(escapeHtml).join(' · ') + '</div>' +
+            '<div class="deck-role-mix">' + roles.join(' / ') + '</div>' +
+            (clash ? '<div class="deck-clash-warning">⚠ Ratchet clash: ' + escapeHtml(clash) + '</div>' : '') +
+          '</div>' +
         '</div>' +
-        '<div class="deck-names">' + names.map(escapeHtml).join(' · ') + '</div>' +
-        '<div class="deck-role-mix">' + roles.join(' / ') + '</div>' +
-        (clash ? '<div class="deck-clash-warning">⚠ Ratchet clash: ' + escapeHtml(clash) + '</div>' : '') +
       '</div>';
     }).join('');
     container.querySelectorAll('[data-deck-load]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         var deck = store.decks[Number(btn.dataset.deckLoad)];
         var idxs = deck.comboKeys.map(function (key) {
           var i = store.combos.findIndex(function (e) { return comboEntryKey(e) === key; });
@@ -1418,7 +1426,8 @@
       });
     });
     container.querySelectorAll('[data-deck-del]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         if (btn.dataset.confirming === '1') {
           store.decks.splice(Number(btn.dataset.deckDel), 1);
           saveStore();
@@ -1437,6 +1446,65 @@
         }, 2500);
       });
     });
+    container.querySelectorAll('.saved-deck-row').forEach(function (row) {
+      row.addEventListener('click', function (e) {
+        if (e.target.closest('[data-deck-load],[data-deck-del]')) return;
+        openDeckModal(Number(row.dataset.deck));
+      });
+    });
+  }
+
+  // Deck detail modal — all 3 (or fewer, if one was since deleted) builds in
+  // one view, each showing the same per-role stat chips and battle-derived
+  // win/loss record already built for the single-combo detail modal, so
+  // nothing about "what a combo's stats mean" is reinvented here. Tapping a
+  // build drills into its full openComboModal (parts, edit, battle log).
+  function deckBuildRowHTML(item) {
+    if (!item) {
+      return '<div class="deck-build-row deck-build-missing">⚠ This combo was deleted.</div>';
+    }
+    var entry = item.entry;
+    var stats = comboScoreOf(entry);
+    var wl = winRateOf(entry);
+    var autoLabel = comboLabel(entry);
+    var displayName = entry.name || autoLabel;
+    var wlLabel = wl.total
+      ? '<span class="wl-record"><b class="wl-win">' + wl.wins + 'W</b> · <b class="wl-loss">' + wl.losses + 'L</b> · ' + wl.pct + '%</span>'
+      : '<span class="wl-label">No battles logged yet</span>';
+    return '<div class="deck-build-row" data-build-idx="' + item.idx + '">' +
+      '<div class="cc-row">' +
+        '<img class="cc-thumb" src="' + comboRepresentativeImage(entry) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
+        '<div class="cc-body">' +
+          '<div class="cc-top"><span class="combo-title-wrap">' +
+            '<span class="combo-parts">' + escapeHtml(displayName) + '</span>' +
+            (entry.name ? '<span class="combo-subparts">' + escapeHtml(autoLabel) + '</span>' : '') +
+          '</span></div>' +
+          comboStatChipsHTML(stats) +
+          '<div class="cc-wl">' + wlLabel + '<span class="wl-tap-hint">Battle log ›</span></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function openDeckModal(di) {
+    var deck = store.decks[di];
+    if (!deck) return;
+    var items = deck.comboKeys.map(function (key) {
+      var i = store.combos.findIndex(function (e) { return comboEntryKey(e) === key; });
+      return i !== -1 ? { entry: store.combos[i], idx: i } : null;
+    });
+    var clash = deckRatchetClash(items.filter(Boolean).map(function (x) { return x.entry; }));
+
+    document.getElementById('modalContent').innerHTML =
+      '<div class="modal-content">' +
+      '<h2 style="margin:0 0 10px">' + escapeHtml(deck.name) + '</h2>' +
+      (clash ? '<div class="deck-clash-warning" style="margin-bottom:10px">⚠ Ratchet clash: ' + escapeHtml(clash) + ' — illegal in 3-on-3.</div>' : '') +
+      items.map(deckBuildRowHTML).join('') +
+      '</div>';
+    document.querySelectorAll('#modalContent [data-build-idx]').forEach(function (row) {
+      row.addEventListener('click', function () { openComboModal(Number(row.dataset.buildIdx)); });
+    });
+    modal.classList.add('open');
   }
 
   // Inline part-editing picker for the combo detail modal — same shape as
