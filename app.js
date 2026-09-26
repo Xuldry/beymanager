@@ -348,6 +348,48 @@
     if (btn.dataset.tab === 'tierlist') { renderTierList(); }
   });
 
+  // ---------------- swipe between main tabs (mobile) ----------------
+  // touchstart/touchend only (no touchmove/preventDefault) so ordinary
+  // vertical scrolling is never touched — a gesture only counts as a tab
+  // swipe once it's finished, horizontal-dominant, past the threshold, and
+  // fast enough to be a flick rather than a slow drag.
+  (function () {
+    var SWIPE_MIN_DX = 60;
+    var SWIPE_MAX_DY = 80;
+    var SWIPE_MAX_MS = 700;
+    var startX = 0, startY = 0, startTime = 0, tracking = false;
+    var appEl = document.getElementById('app');
+
+    function blocked() {
+      return document.getElementById('partModal').classList.contains('open') ||
+        document.getElementById('sheetBackdrop').classList.contains('open');
+    }
+
+    appEl.addEventListener('touchstart', function (e) {
+      if (blocked() || e.touches.length !== 1) { tracking = false; return; }
+      tracking = true;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTime = Date.now();
+    }, { passive: true });
+
+    appEl.addEventListener('touchend', function (e) {
+      if (!tracking || blocked() || e.touches.length !== 0) { tracking = false; return; }
+      tracking = false;
+      var t = e.changedTouches[0];
+      var dx = t.clientX - startX;
+      var dy = t.clientY - startY;
+      if (Date.now() - startTime > SWIPE_MAX_MS) return;
+      if (Math.abs(dx) < SWIPE_MIN_DX || Math.abs(dy) > SWIPE_MAX_DY) return;
+      var buttons = Array.prototype.slice.call(document.querySelectorAll('#mainTabs .tab-btn'));
+      var activeIdx = buttons.findIndex(function (b) { return b.classList.contains('active'); });
+      if (activeIdx === -1) return;
+      var nextIdx = activeIdx + (dx < 0 ? 1 : -1);
+      if (nextIdx < 0 || nextIdx >= buttons.length) return;
+      buttons[nextIdx].click();
+    }, { passive: true });
+  })();
+
   // ---------------- database tab ----------------
   var dbState = { partType: 'blades', search: '', series: '', type: '', ownedOnly: false };
 
