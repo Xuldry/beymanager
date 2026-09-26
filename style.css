@@ -533,7 +533,6 @@ body {
   cursor: pointer;
 }
 .saved-deck-row:hover { border-color: var(--accent); }
-.deck-row-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .deck-row-name { font-weight: 700; font-size: 13px; }
 
 .deck-build-row {

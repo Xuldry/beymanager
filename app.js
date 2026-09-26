@@ -946,6 +946,21 @@
     return bladeName + ' / ' + (entry.ratchet || '—') + ' / ' + bitName(entry.bit);
   }
 
+  // Compact form for tight spaces (a deck's "3 combos on one line" summary)
+  // — "Dran Sword 0-60A" instead of "DranSword / 0-60 / Accel": a spaced-out
+  // blade name (data names are camelCase, e.g. "DranSword") followed by the
+  // ratchet and bit ids run together with no separator, since a bit's id is
+  // already its short code (e.g. "A" for Accel, "LF" for Low Flat). CX combos
+  // use just the Main Blade, same "most recognizable piece" choice as
+  // comboRepresentativeImage below, rather than all three blade names.
+  function spacedPartName(s) { return String(s || '').replace(/([a-z0-9])([A-Z])/g, '$1 $2'); }
+  function comboShortLabel(entry) {
+    if (!entry) return '⚠ combo deleted';
+    var bladeId = entry.isCX ? entry.main : entry.blade;
+    var bladeName = bladeId && byId.blades[bladeId] ? byId.blades[bladeId].name : '—';
+    return spacedPartName(bladeName) + ' ' + (entry.ratchet || '—') + (entry.bit || '');
+  }
+
   // For CX combos the Main Blade is the biggest, most recognizable piece,
   // so it stands in as the combo's thumbnail alongside the standard blade.
   function comboRepresentativeImage(entry) {
@@ -1340,7 +1355,7 @@
     }
 
     var entries = sel.map(function (idx) { return store.combos[idx]; }).filter(Boolean);
-    var names = entries.map(function (e) { return e.name || comboLabel(e); });
+    var names = entries.map(function (e) { return e.name || comboShortLabel(e); });
     var roles = entries.map(function (e) { var r = comboDominantRole(e); return r ? capitalize(r) : '?'; });
     var clash = deckRatchetClash(entries);
 
@@ -1392,7 +1407,7 @@
       var entries = deck.comboKeys.map(function (key) {
         return store.combos.find(function (e) { return comboEntryKey(e) === key; }) || null;
       });
-      var names = entries.map(function (e) { return e ? (e.name || comboLabel(e)) : '⚠ combo deleted'; });
+      var names = entries.map(function (e) { return e ? (e.name || comboShortLabel(e)) : '⚠ combo deleted'; });
       var roles = entries.filter(Boolean).map(function (e) { var r = comboDominantRole(e); return r ? capitalize(r) : '?'; });
       var clash = deckRatchetClash(entries.filter(Boolean));
       var thumbEntry = entries.filter(Boolean)[0];
@@ -1401,7 +1416,7 @@
         '<div class="cc-row">' +
           '<img class="cc-thumb" src="' + thumbSrc + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
           '<div class="cc-body">' +
-            '<div class="deck-row-top"><span class="deck-row-name">' + escapeHtml(deck.name) + '</span>' +
+            '<div class="cc-top"><span class="deck-row-name">' + escapeHtml(deck.name) + '</span>' +
               '<span class="cc-top-btns"><button class="btn-icon" data-deck-load="' + di + '" title="Load">⬆</button><button class="btn-del" data-deck-del="' + di + '" title="Delete">&times;</button></span>' +
             '</div>' +
             '<div class="deck-names">' + names.map(escapeHtml).join(' · ') + '</div>' +
