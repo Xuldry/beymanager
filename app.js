@@ -108,10 +108,10 @@
   var store = loadStore();
   rebuildDerived();
 
-  // backupVersion 2: adds ordinalLists/measuredOverrides/learnedStats/
-  // weightOverrides/battles for the v2 scoring engine. Purely additive —
-  // a v1 backup (owned/combos/customParts only) still imports cleanly,
-  // it just starts with empty tuning/battle data, never wiped or rejected.
+  // backupVersion 3: adds decks (3-combo sets for the 3-on-3 ratchet check),
+  // on top of backupVersion 2's ordinalLists/measuredOverrides/learnedStats/
+  // weightOverrides/battles. Purely additive — an older backup still imports
+  // cleanly, it just starts with no saved decks, never wiped or rejected.
   function normalizeStore(s) {
     if (!s || typeof s !== 'object') s = {};
     if (!s.owned || typeof s.owned !== 'object') s.owned = {};
@@ -119,6 +119,7 @@
     if (!s.owned.ratchets) s.owned.ratchets = {};
     if (!s.owned.bits) s.owned.bits = {};
     if (!Array.isArray(s.combos)) s.combos = [];
+    if (!Array.isArray(s.decks)) s.decks = [];
     if (!s.customParts || typeof s.customParts !== 'object') s.customParts = {};
     if (!Array.isArray(s.customParts.blades)) s.customParts.blades = [];
     if (!Array.isArray(s.customParts.ratchets)) s.customParts.ratchets = [];
@@ -157,7 +158,7 @@
   }
 
   document.getElementById('btnExportBackup').addEventListener('click', function () {
-    var payload = { app: 'beymanager', backupVersion: 2, exportedAt: new Date().toISOString(), data: store };
+    var payload = { app: 'beymanager', backupVersion: 3, exportedAt: new Date().toISOString(), data: store };
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -215,6 +216,7 @@
       refreshComboSelects();
       renderOwnershipSummary();
       renderSavedCombos();
+      renderSavedDecks();
       renderRoleBoard();
       renderSuggestedParts();
       renderBattleEntry();
@@ -445,11 +447,14 @@
     }
     var tag = p.isCustom ? '<span class="type-badge" style="background:rgba(255,255,255,0.1);color:var(--text-dim)">Custom</span>' :
       (p.isHasbroRetool ? '<span class="type-badge" style="background:rgba(255,255,255,0.1);color:var(--text-dim)">Hasbro</span>' : '');
+    var battleRec = partBattleRecord(cat, p.id);
+    var winRateTag = battleRec.total ? '<div class="part-card-winrate">' + battleRec.pct + '% · ' + battleRec.total + '</div>' : '';
     return (
       '<div class="part-card' + (owned ? ' owned' : '') + '" data-cat="' + cat + '" data-id="' + escapeAttr(p.id) + '">' +
+        winRateTag +
         '<div class="owned-check">' + (owned ? '✓' : '') + '</div>' +
         '<img src="' + partImg(p) + '" alt="' + escapeAttr(name) + '" loading="lazy" onerror="this.style.opacity=0.2">' +
-        '<div class="part-name">' + escapeHtml(name) + '</div>' +
+        '<div class="part-name">' + escapeHtml(name) + ' ' + metaTierBadgeHTML(cat, p.id) + '</div>' +
         '<div class="part-sub">' + escapeHtml(sub) + '</div>' +
         (p.type ? '<span class="type-badge type-' + p.type + '">' + p.type + '</span>' : '') + ' ' + tag +
       '</div>'
@@ -522,20 +527,31 @@
       var biStats = window.BeyScoring.bitStatsOf(p, BOOTSTRAP_CACHE);
       measuredFields = [['grip', 'Grip', biStats.grip], ['burst', 'Burst resistance', biStats.burst]];
     }
-    var measuredHTML = '<div class="tuning-block-title" style="margin-top:14px">Tuning stats <span class="hint" style="font-weight:400">(0–10, used by Recommendations)</span></div>' +
+    var measuredHTML = '<div class="tuning-block-title" style="margin-top:14px">Estimated stats <span class="hint" style="font-weight:400">(0–10, one decimal — a rough sorting aid for what to try first, not a verdict)</span></div>' +
       measuredFields.map(function (f) {
         return '<div class="measured-field"><label>' + escapeHtml(f[1]) + ' ' + provBadgeHTML(f[2], f[1]) + '</label>' +
-          '<input type="number" inputmode="decimal" min="0" max="10" step="0.1" value="' + f[2].value + '" data-measure="' + cat + ':' + id + ':' + f[0] + '"></div>';
+          '<input type="number" inputmode="decimal" min="0" max="10" step="0.1" value="' + f[2].value.toFixed(1) + '" data-measure="' + cat + ':' + id + ':' + f[0] + '"></div>';
       }).join('');
+
+    // Battles are the only real data this app has — when a part has any
+    // logged record, that record is the headline, shown before the guessed
+    // estimated stats rather than after.
+    var battleRec = partBattleRecord(cat, id);
+    var battleHTML = battleRec.total
+      ? '<div class="tuning-block-title" style="margin-top:14px">Battle record</div>' +
+        '<div class="combo-wl-summary"><span class="wl-win">' + battleRec.wins + 'W</span><span class="wl-loss">' + battleRec.losses + 'L</span><span class="wl-pct">' + battleRec.pct + '% win rate · ' + battleRec.total + ' battles</span></div>'
+      : '';
 
     document.getElementById('modalContent').innerHTML =
       '<div class="modal-content">' +
       '<img src="' + partImg(p) + '" alt="' + escapeAttr(name) + '">' +
-      '<h2 style="margin:0 0 4px">' + escapeHtml(name) + ' <span style="font-weight:400;color:var(--text-dim);font-size:14px">(' + id + ')</span></h2>' +
+      '<h2 style="margin:0 0 4px">' + escapeHtml(name) + ' <span style="font-weight:400;color:var(--text-dim);font-size:14px">(' + id + ')</span> ' + metaTierBadgeHTML(cat, id) + '</h2>' +
+      (p.metaNote ? '<p class="hint" style="margin:0 0 4px">' + escapeHtml(p.metaNote) + (p.metaUpdated ? ' (as of ' + escapeHtml(p.metaUpdated) + ')' : '') + '</p>' : '') +
       (p.note ? '<p class="hint" style="margin:0 0 10px">' + escapeHtml(p.note) + '</p>' : '') +
       rows.map(function (r) {
         return '<div class="modal-spec-row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>';
       }).join('') +
+      battleHTML +
       measuredHTML +
       '<button class="modal-own-btn' + (owned ? ' is-owned' : '') + '" id="modalOwnBtn" style="margin-top:14px">' +
         (owned ? '✓ In your collection' : '+ Add to my collection') +
@@ -932,8 +948,81 @@
     return { wins: wins, losses: losses, total: total, pct: total ? Math.round((wins / total) * 100) : null };
   }
 
+  // Per-part win/loss tally across every logged battle (a part's record is
+  // the sum of every combo it appeared in, win or lose, regardless of the
+  // rest of that combo) — this is the one number in the app backed entirely
+  // by real results, so it's shown ahead of any estimated stat wherever a
+  // part appears (Database cards, part modal, role board).
+  function partBattleTally() {
+    var tally = {};
+    function bump(cat, id, won) {
+      if (!id) return;
+      var key = cat + ':' + id;
+      if (!tally[key]) tally[key] = { wins: 0, losses: 0 };
+      if (won) tally[key].wins++; else tally[key].losses++;
+    }
+    store.battles.forEach(function (b) {
+      var winnerCombo = b.winner === 'A' ? b.comboA : b.comboB;
+      var loserCombo = b.winner === 'A' ? b.comboB : b.comboA;
+      comboBladeIdsLocal(winnerCombo).forEach(function (id) { bump('blades', id, true); });
+      comboBladeIdsLocal(loserCombo).forEach(function (id) { bump('blades', id, false); });
+      bump('ratchets', winnerCombo.ratchet, true); bump('ratchets', loserCombo.ratchet, false);
+      bump('bits', winnerCombo.bit, true); bump('bits', loserCombo.bit, false);
+    });
+    return tally;
+  }
+
+  function partBattleRecord(cat, id) {
+    var t = partBattleTally()[cat + ':' + id];
+    var wins = t ? t.wins : 0, losses = t ? t.losses : 0, total = wins + losses;
+    return { wins: wins, losses: losses, total: total, pct: total ? Math.round((wins / total) * 100) : null };
+  }
+
   // ---------------- saved combos: filter + sort ----------------
-  var savedCombosState = { blade: '', ratchet: '', bit: '', sort: 'total_desc' };
+  var savedCombosState = { blade: '', ratchet: '', bit: '', sort: 'total_desc', deckMode: false, deckSelection: [], deckFlash: '', deckSaveOpen: false };
+
+  document.getElementById('btnDeckMode').addEventListener('click', function () {
+    savedCombosState.deckMode = !savedCombosState.deckMode;
+    if (!savedCombosState.deckMode) { savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false; savedCombosState.deckFlash = ''; }
+    renderSavedCombos();
+  });
+
+  // A combo's "role" for deck-mix purposes is whichever of the three new
+  // per-role scores is highest for it — same engine the role board ranks
+  // with, just picking the single best-fit label instead of showing all three.
+  function comboDominantRole(entry) {
+    var blade = entry.isCX ? byId.blades[entry.main] : byId.blades[entry.blade];
+    var blade2 = entry.isCX ? byId.blades[entry.lock] : null;
+    var blade3 = entry.isCX ? byId.blades[entry.assist] : null;
+    var ratchet = byId.ratchets[entry.ratchet];
+    var bit = byId.bits[entry.bit];
+    if (!blade || !ratchet || !bit) return null;
+    var all = window.BeyScoring.scoreComboAllRoles(blade, ratchet, bit, blade2, blade3, BOOTSTRAP_CACHE);
+    var roles = ['attack', 'stamina', 'defense'];
+    var best = roles[0];
+    roles.forEach(function (r) { if (all[r].score > all[best].score) best = r; });
+    return best;
+  }
+
+  // Ratchet repeats are illegal in a 3-on-3 WBO match — flag it by name,
+  // don't just say "conflict". Takes an array of store.combos entries.
+  function deckRatchetClash(entries) {
+    var seen = {};
+    var clash = null;
+    entries.forEach(function (e) {
+      if (!e || !e.ratchet) return;
+      if (seen[e.ratchet]) clash = e.ratchet; else seen[e.ratchet] = true;
+    });
+    return clash;
+  }
+
+  function deckFlashMessage(text) {
+    savedCombosState.deckFlash = text;
+    renderDeckStickyBar();
+    setTimeout(function () {
+      if (savedCombosState.deckFlash === text) { savedCombosState.deckFlash = ''; renderDeckStickyBar(); }
+    }, 2000);
+  }
 
   function renderSavedCombosControls() {
     var container = document.getElementById('savedCombosControls');
@@ -981,9 +1070,13 @@
 
   function renderSavedCombos() {
     renderSavedCombosControls();
+    var deckBtn = document.getElementById('btnDeckMode');
+    deckBtn.textContent = savedCombosState.deckMode ? 'Cancel deck mode' : 'Build a deck';
+    deckBtn.classList.toggle('active', savedCombosState.deckMode);
     var container = document.getElementById('savedCombos');
     if (!store.combos.length) {
       container.innerHTML = '<div class="empty-state">No saved combos yet. Build one above and hit "Save this combo".</div>';
+      renderDeckStickyBar();
       return;
     }
 
@@ -1008,6 +1101,7 @@
 
     if (!rows.length) {
       container.innerHTML = '<div class="empty-state">No saved combos match these filters.</div>';
+      renderDeckStickyBar();
       return;
     }
 
@@ -1018,7 +1112,11 @@
         : '<span class="wl-label">No battles logged yet</span>';
       var autoLabel = comboLabel(row.entry);
       var displayName = row.entry.name || autoLabel;
-      return '<div class="combo-chip-v2" data-idx="' + row.idx + '">' +
+      var selPos = savedCombosState.deckSelection.indexOf(row.idx);
+      var deckCls = savedCombosState.deckMode ? (selPos !== -1 ? ' deck-selected' : ' deck-selectable') : '';
+      var deckCheck = savedCombosState.deckMode ? '<div class="deck-check">' + (selPos !== -1 ? (selPos + 1) : '') + '</div>' : '';
+      return '<div class="combo-chip-v2' + deckCls + '" data-idx="' + row.idx + '">' +
+        deckCheck +
         '<div class="cc-row">' +
           '<img class="cc-thumb" src="' + comboRepresentativeImage(row.entry) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
           '<div class="cc-body">' +
@@ -1072,7 +1170,136 @@
     container.querySelectorAll('.combo-chip-v2').forEach(function (card) {
       card.addEventListener('click', function (e) {
         if (e.target.closest('[data-del],[data-rename],.combo-rename-input')) return;
-        openComboModal(Number(card.dataset.idx));
+        var idx = Number(card.dataset.idx);
+        if (savedCombosState.deckMode) {
+          var pos = savedCombosState.deckSelection.indexOf(idx);
+          if (pos !== -1) savedCombosState.deckSelection.splice(pos, 1);
+          else if (savedCombosState.deckSelection.length >= 3) { deckFlashMessage('Max 3 combos — deselect one first.'); return; }
+          else savedCombosState.deckSelection.push(idx);
+          renderSavedCombos();
+          return;
+        }
+        openComboModal(idx);
+      });
+    });
+    renderDeckStickyBar();
+  }
+
+  // ---------------- deck builder: sticky bar + saved decks ----------------
+  function renderDeckStickyBar() {
+    var bar = document.getElementById('deckStickyBar');
+    var sel = savedCombosState.deckSelection;
+    var panel = document.getElementById('panel-mybeys');
+    if (!savedCombosState.deckMode || (!sel.length && !savedCombosState.deckFlash)) {
+      bar.classList.remove('open');
+      bar.innerHTML = '';
+      panel.classList.remove('deck-bar-open');
+      return;
+    }
+    panel.classList.add('deck-bar-open');
+    bar.classList.add('open');
+
+    if (savedCombosState.deckFlash) {
+      bar.innerHTML = '<div class="deck-flash">' + escapeHtml(savedCombosState.deckFlash) + '</div>';
+      return;
+    }
+
+    var entries = sel.map(function (idx) { return store.combos[idx]; }).filter(Boolean);
+    var names = entries.map(function (e) { return e.name || comboLabel(e); });
+    var roles = entries.map(function (e) { var r = comboDominantRole(e); return r ? capitalize(r) : '?'; });
+    var clash = deckRatchetClash(entries);
+
+    if (savedCombosState.deckSaveOpen) {
+      bar.innerHTML =
+        '<div class="deck-names">' + names.map(escapeHtml).join(' · ') + '</div>' +
+        '<input type="text" id="deckNameInput" placeholder="Name this deck" maxlength="40">' +
+        '<div class="deck-bar-btns">' +
+          '<button class="btn-primary" id="deckSaveConfirm">Save</button>' +
+          '<button class="btn-secondary" id="deckSaveCancel">Cancel</button>' +
+        '</div>';
+      var input = document.getElementById('deckNameInput');
+      input.focus();
+      document.getElementById('deckSaveConfirm').addEventListener('click', function () {
+        var name = input.value.trim() || ('Deck ' + (store.decks.length + 1));
+        store.decks.push({ name: name, comboKeys: entries.map(comboEntryKey), savedAt: new Date().toISOString() });
+        saveStore();
+        savedCombosState.deckMode = false; savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false;
+        renderSavedCombos();
+        renderSavedDecks();
+      });
+      document.getElementById('deckSaveCancel').addEventListener('click', function () {
+        savedCombosState.deckSaveOpen = false;
+        renderDeckStickyBar();
+      });
+      return;
+    }
+
+    bar.innerHTML =
+      '<div class="deck-names">' + (names.length ? names.map(escapeHtml).join(' · ') : 'Tap up to 3 combos above') + '</div>' +
+      (entries.length ? '<div class="deck-role-mix">' + roles.join(' / ') + '</div>' : '') +
+      (clash ? '<div class="deck-clash-warning">⚠ Ratchet clash: two combos use ' + escapeHtml(clash) + ' — illegal in 3-on-3.</div>' : '') +
+      '<div class="deck-bar-btns">' +
+        '<button class="btn-primary" id="deckSaveBtn"' + (entries.length ? '' : ' disabled') + '>Save deck</button>' +
+        '<button class="btn-secondary" id="deckCancelBtn">Clear</button>' +
+      '</div>';
+    var saveBtn = document.getElementById('deckSaveBtn');
+    if (saveBtn) saveBtn.addEventListener('click', function () { savedCombosState.deckSaveOpen = true; renderDeckStickyBar(); });
+    document.getElementById('deckCancelBtn').addEventListener('click', function () {
+      savedCombosState.deckSelection = [];
+      renderSavedCombos();
+    });
+  }
+
+  function renderSavedDecks() {
+    var container = document.getElementById('savedDecks');
+    if (!store.decks.length) { container.innerHTML = '<div class="empty-state">No saved decks yet.</div>'; return; }
+    container.innerHTML = store.decks.map(function (deck, di) {
+      var entries = deck.comboKeys.map(function (key) {
+        return store.combos.find(function (e) { return comboEntryKey(e) === key; }) || null;
+      });
+      var names = entries.map(function (e) { return e ? (e.name || comboLabel(e)) : '⚠ combo deleted'; });
+      var roles = entries.filter(Boolean).map(function (e) { var r = comboDominantRole(e); return r ? capitalize(r) : '?'; });
+      var clash = deckRatchetClash(entries.filter(Boolean));
+      return '<div class="saved-deck-row" data-deck="' + di + '">' +
+        '<div class="deck-row-top"><span class="deck-row-name">' + escapeHtml(deck.name) + '</span>' +
+          '<span class="cc-top-btns"><button class="btn-icon" data-deck-load="' + di + '" title="Load">⬆</button><button class="btn-del" data-deck-del="' + di + '" title="Delete">&times;</button></span>' +
+        '</div>' +
+        '<div class="deck-names">' + names.map(escapeHtml).join(' · ') + '</div>' +
+        '<div class="deck-role-mix">' + roles.join(' / ') + '</div>' +
+        (clash ? '<div class="deck-clash-warning">⚠ Ratchet clash: ' + escapeHtml(clash) + '</div>' : '') +
+      '</div>';
+    }).join('');
+    container.querySelectorAll('[data-deck-load]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var deck = store.decks[Number(btn.dataset.deckLoad)];
+        var idxs = deck.comboKeys.map(function (key) {
+          var i = store.combos.findIndex(function (e) { return comboEntryKey(e) === key; });
+          return i;
+        }).filter(function (i) { return i !== -1; });
+        savedCombosState.deckMode = true;
+        savedCombosState.deckSelection = idxs;
+        savedCombosState.deckSaveOpen = false;
+        renderSavedCombos();
+      });
+    });
+    container.querySelectorAll('[data-deck-del]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (btn.dataset.confirming === '1') {
+          store.decks.splice(Number(btn.dataset.deckDel), 1);
+          saveStore();
+          renderSavedDecks();
+          return;
+        }
+        btn.dataset.confirming = '1';
+        btn.textContent = 'Sure?';
+        btn.classList.add('confirm-delete');
+        setTimeout(function () {
+          if (btn.dataset.confirming === '1') {
+            btn.dataset.confirming = '';
+            btn.textContent = '×';
+            btn.classList.remove('confirm-delete');
+          }
+        }, 2500);
       });
     });
   }
@@ -1196,10 +1423,11 @@
     roleBoardState = btn.dataset.role;
     roleBoardOpen = {};
     var hints = {
-      attack: 'Ranked by estimated Attack performance, using only parts you own.',
-      stamina: 'Ranked by estimated Stamina performance, using only parts you own.',
-      defense: 'Ranked by estimated Defense performance, using only parts you own.',
-      compare: 'Same combos, old flat-sum score vs the new per-role scores. Sorted by biggest change.'
+      attack: 'Ranked by your battle record when you have enough logged (5+ battles), estimated Attack score otherwise. Estimates use only parts you own.',
+      stamina: 'Ranked by your battle record when you have enough logged (5+ battles), estimated Stamina score otherwise. Estimates use only parts you own.',
+      defense: 'Ranked by your battle record when you have enough logged (5+ battles), estimated Defense score otherwise. Estimates use only parts you own.',
+      compare: 'Old model vs new model, by rank — not raw score, since the two scales aren’t comparable.',
+      'meta-gap': 'Top-tier parts (per your manually-synced tier list) that you don’t own yet.'
     };
     document.getElementById('roleHint') && (document.getElementById('roleHint').textContent = hints[roleBoardState]);
     renderRoleBoard();
@@ -1243,6 +1471,16 @@
     return out;
   }
 
+  // Community tier badge (manually synced by the user against a tier list,
+  // e.g. bbxhub.net — never scraped/fetched by the app, and absent entirely
+  // until the user adds metaTier to a part's data entry by hand).
+  function metaTierBadgeHTML(cat, id) {
+    var part = byId[cat] && byId[cat][id];
+    if (!part || !part.metaTier) return '';
+    var title = 'Community tier ' + part.metaTier + (part.metaUpdated ? ' (as of ' + part.metaUpdated + ')' : '') + (part.metaNote ? ': ' + part.metaNote : '');
+    return '<span class="meta-tier-badge tier-' + escapeAttr(part.metaTier) + '" title="' + escapeAttr(title) + '">' + escapeHtml(part.metaTier) + '</span>';
+  }
+
   function provBadgeHTML(statObj, fieldLabel) {
     var letter = { measured: 'M', learned: 'L', ranked: 'R', default: 'D' }[statObj.source] || '?';
     return '<span class="prov-badge prov-' + statObj.source + '" data-prov-field="' + escapeAttr(fieldLabel) + '" data-prov-source="' + statObj.source +
@@ -1262,6 +1500,7 @@
   function renderRoleBoard() {
     var container = document.getElementById('roleBoard');
     if (roleBoardState === 'compare') { renderCompareView(container); return; }
+    if (roleBoardState === 'meta-gap') { renderMetaGapView(container); return; }
 
     var candidates = ownedComboCandidates();
     if (!candidates.length) {
@@ -1270,42 +1509,54 @@
     }
     var scored = candidates.map(function (c) {
       var result = window.BeyScoring.scoreCombo(roleBoardState, c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE);
-      return { label: c.label, entry: c.entry, result: result };
+      return { label: c.label, entry: c.entry, result: result, wl: winRateOf(c.entry) };
     });
-    scored.sort(function (a, b) { return b.result.score - a.result.score; });
-    roleBoardCandidates = scored.slice(0, 10);
+    // Battles are the only real data this app has — a combo with an
+    // adequate sample (>=5 logged battles) ranks by its actual win rate,
+    // ahead of every estimate-only combo, which falls back to sorting by
+    // the (guessed-input) estimated score.
+    var battleTested = scored.filter(function (c) { return c.wl.total >= 5; });
+    var estimateOnly = scored.filter(function (c) { return c.wl.total < 5; });
+    battleTested.sort(function (a, b) { return b.wl.pct - a.wl.pct; });
+    estimateOnly.sort(function (a, b) { return b.result.score - a.result.score; });
+    roleBoardCandidates = battleTested.concat(estimateOnly).slice(0, 10);
 
     var existingKeys = {};
     store.combos.forEach(function (e) { existingKeys[comboEntryKey(e)] = true; });
     var weights = window.BeyScoring.roleWeights(roleBoardState);
 
     container.innerHTML = roleBoardCandidates.map(function (c, i) {
-      var r = c.result;
+      var r = c.result, wl = c.wl;
       var saved = existingKeys[comboEntryKey(c.entry)];
-      var scoreLine = r.range
-        ? '<span class="num">' + r.score + '</span><span class="range">' + r.range.low + '–' + r.range.high + '</span>'
-        : '<span class="num">' + r.score + '</span>';
+      var basisLabel, scoreLine;
+      if (wl.total >= 5) {
+        basisLabel = 'Battle record (' + wl.total + ' battles)';
+        scoreLine = '<span class="num">' + wl.pct + '%</span><span class="sub">' + wl.wins + 'W-' + wl.losses + 'L · est ' + r.score.toFixed(1) + '</span>';
+      } else {
+        basisLabel = 'Estimate' + (wl.total ? ' (' + wl.total + ' battle' + (wl.total > 1 ? 's' : '') + ' logged, not enough yet)' : '');
+        scoreLine = '<span class="num">' + r.score.toFixed(1) + '</span>';
+      }
       var rows = Object.keys(weights).map(function (k) {
-        var statObj = k === 'atk' ? null : null; // per-combo blended metric, not a single part's stat — badge shown per-part in the part rows below instead
         return breakdownRowHTML(k.toUpperCase(), r.metrics[k] || 0, weights[k]);
       }).join('');
-      var partProv = '<div class="breakdown-row" style="margin-top:6px"><span class="b-label">Blade</span><span style="flex:1"></span>' +
+      var bladeId = c.entry.isCX ? c.entry.main : c.entry.blade;
+      var partProv = '<div class="breakdown-row" style="margin-top:6px"><span class="b-label">Blade</span>' + metaTierBadgeHTML('blades', bladeId) + '<span style="flex:1"></span>' +
           provBadgeHTML(r.bladeStats.atk, 'blade atk') + provBadgeHTML(r.bladeStats.recoil, 'blade recoil') + '</div>' +
-        '<div class="breakdown-row"><span class="b-label">Ratchet</span><span style="flex:1"></span>' + provBadgeHTML(r.ratchetStats.burst, 'ratchet burst') + '</div>' +
-        '<div class="breakdown-row"><span class="b-label">Bit</span><span style="flex:1"></span>' + provBadgeHTML(r.bitStats.grip, 'bit grip') + provBadgeHTML(r.bitStats.burst, 'bit burst') + '</div>';
-      var penaltiesHTML = r.penalties.length
-        ? r.penalties.map(function (p) { return '<div class="penalty-row"><span class="p-name">' + escapeHtml(p.name) + ' ×' + p.factor + '</span><span class="p-reason">' + escapeHtml(p.reason) + '</span></div>'; }).join('')
-        : '<div class="no-penalties">No penalties fired.</div>';
+        '<div class="breakdown-row"><span class="b-label">Ratchet</span>' + metaTierBadgeHTML('ratchets', c.entry.ratchet) + '<span style="flex:1"></span>' + provBadgeHTML(r.ratchetStats.burst, 'ratchet burst') + '</div>' +
+        '<div class="breakdown-row"><span class="b-label">Bit</span>' + metaTierBadgeHTML('bits', c.entry.bit) + '<span style="flex:1"></span>' + provBadgeHTML(r.bitStats.grip, 'bit grip') + provBadgeHTML(r.bitStats.burst, 'bit burst') + '</div>';
+      var warningsHTML = r.warnings.length
+        ? r.warnings.map(function (w) { return '<div class="warning-row"><span class="w-label">' + escapeHtml(w.label) + '</span></div>'; }).join('')
+        : '<div class="no-warnings">No warnings.</div>';
       return '<div class="role-card' + (roleBoardOpen[i] ? ' open' : '') + '" data-idx="' + i + '">' +
         '<div class="role-card-head" data-toggle="' + i + '">' +
-          '<span class="combo-parts">' + escapeHtml(c.label) + '</span>' +
+          '<span class="combo-parts">' + escapeHtml(c.label) + '<span class="role-card-basis">' + escapeHtml(basisLabel) + '</span></span>' +
           '<span class="role-card-score">' + scoreLine + '</span>' +
           '<span class="role-card-caret">▾</span>' +
         '</div>' +
         '<div class="role-card-body">' +
           rows + partProv +
-          '<div class="no-penalties" style="margin-top:8px">Penalties (multiplier ' + r.penaltyMultiplier + '×):</div>' +
-          penaltiesHTML +
+          '<div class="tuning-block-title" style="margin-top:8px">Warnings</div>' +
+          warningsHTML +
           '<button class="btn-save-combo" data-save="' + i + '" style="margin-top:10px"' + (saved ? ' disabled' : '') + '>' + (saved ? '✓ Saved' : '+ Save combo') + '</button>' +
         '</div>' +
       '</div>';
@@ -1334,6 +1585,10 @@
     });
   }
 
+  // Old (flat-sum) and new (per-role) scores are on different, incomparable
+  // scales — a raw delta between them is meaningless (it read ~-9 for
+  // everything). Rank is comparable across models even when the underlying
+  // numbers aren't, so that's what's shown here instead.
   function renderCompareView(container) {
     var candidates = ownedComboCandidates();
     if (!candidates.length) {
@@ -1342,36 +1597,106 @@
     }
     var rows = candidates.map(function (c) {
       var oldScore = window.BeyScoring.scoreComboOldSum(c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE);
-      var newAtk = window.BeyScoring.scoreCombo('attack', c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE).score;
-      var newSta = window.BeyScoring.scoreCombo('stamina', c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE).score;
-      var newDef = window.BeyScoring.scoreCombo('defense', c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE).score;
-      var newBest = Math.max(newAtk, newSta, newDef);
-      return { label: c.label, oldScore: oldScore, newAtk: newAtk, newSta: newSta, newDef: newDef, delta: newBest - oldScore };
+      var newBest = Math.max(
+        window.BeyScoring.scoreCombo('attack', c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE).score,
+        window.BeyScoring.scoreCombo('stamina', c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE).score,
+        window.BeyScoring.scoreCombo('defense', c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE).score
+      );
+      return { label: c.label, oldScore: oldScore, newBest: newBest };
     });
-    rows.sort(function (a, b) { return Math.abs(b.delta) - Math.abs(a.delta); });
+    var byOld = rows.slice().sort(function (a, b) { return b.oldScore - a.oldScore; });
+    byOld.forEach(function (r, i) { r.oldRank = i + 1; });
+    var byNew = rows.slice().sort(function (a, b) { return b.newBest - a.newBest; });
+    byNew.forEach(function (r, i) { r.newRank = i + 1; });
+    rows.forEach(function (r) { r.rankChange = r.oldRank - r.newRank; });
+    rows.sort(function (a, b) { return Math.abs(b.rankChange) - Math.abs(a.rankChange); });
     rows = rows.slice(0, 15);
 
+    function changeHTML(r) {
+      if (r.rankChange === 0) return '<span class="compare-delta flat">–</span>';
+      var up = r.rankChange > 0;
+      return '<span class="compare-delta ' + (up ? 'up' : 'down') + '">' + (up ? '↑' : '↓') + Math.abs(r.rankChange) + '</span>';
+    }
+
     var cards = rows.map(function (r) {
-      var deltaClass = r.delta >= 0 ? 'up' : 'down';
       return '<div class="compare-card">' +
         '<div class="cc-parts">' + escapeHtml(r.label) + '</div>' +
         '<div class="compare-scores">' +
-          '<div><div class="cs-label">Old sum</div><div class="cs-value">' + r.oldScore.toFixed(1) + '</div></div>' +
-          '<div><div class="cs-label">Atk</div><div class="cs-value">' + r.newAtk.toFixed(1) + '</div></div>' +
-          '<div><div class="cs-label">Sta</div><div class="cs-value">' + r.newSta.toFixed(1) + '</div></div>' +
-          '<div><div class="cs-label">Def</div><div class="cs-value">' + r.newDef.toFixed(1) + '</div></div>' +
-          '<div><div class="cs-label">Δ best</div><div class="cs-value compare-delta ' + deltaClass + '">' + (r.delta >= 0 ? '+' : '') + r.delta.toFixed(1) + '</div></div>' +
+          '<div><div class="cs-label">Old rank</div><div class="cs-value">#' + r.oldRank + '</div></div>' +
+          '<div><div class="cs-label">New rank</div><div class="cs-value">#' + r.newRank + '</div></div>' +
+          '<div><div class="cs-label">Change</div><div class="cs-value">' + changeHTML(r) + '</div></div>' +
         '</div></div>';
     }).join('');
 
     var tableRows = rows.map(function (r) {
-      var deltaClass = r.delta >= 0 ? 'up' : 'down';
-      return '<tr><td>' + escapeHtml(r.label) + '</td><td>' + r.oldScore.toFixed(1) + '</td><td>' + r.newAtk.toFixed(1) + '</td><td>' + r.newSta.toFixed(1) + '</td><td>' + r.newDef.toFixed(1) +
-        '</td><td class="compare-delta ' + deltaClass + '">' + (r.delta >= 0 ? '+' : '') + r.delta.toFixed(1) + '</td></tr>';
+      return '<tr><td>' + escapeHtml(r.label) + '</td><td>#' + r.oldRank + '</td><td>#' + r.newRank + '</td><td>' + changeHTML(r) + '</td></tr>';
     }).join('');
-    var table = '<table class="compare-table"><thead><tr><th>Combo</th><th>Old sum</th><th>Atk</th><th>Sta</th><th>Def</th><th>Δ best</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
+    var table = '<table class="compare-table"><thead><tr><th>Combo</th><th>Old rank</th><th>New rank</th><th>Change</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
 
     container.innerHTML = cards + table;
+  }
+
+  // The competitive-buying-guide view: top-tier (S/A) parts the user
+  // doesn't own, grouped by category+type, with a plain-English gap summary.
+  // Tier data is entirely manual (see metaTierBadgeHTML) — this view is
+  // just a filter/report over whatever the user has synced in, and is
+  // expected to be empty until they do that syncing pass.
+  var SINGULAR_LABEL = { blades: 'blade', ratchets: 'ratchet', bits: 'bit' };
+
+  function renderMetaGapView(container) {
+    var groups = [
+      { cat: 'blades', list: STANDARD_BLADES.concat(CX_LOCKCHIPS, CX_MAINBLADES, CX_ASSISTBLADES), label: 'Blades' },
+      { cat: 'ratchets', list: RATCHETS, label: 'Ratchets' },
+      { cat: 'bits', list: BITS, label: 'Bits' }
+    ];
+    var types = ['Attack', 'Defense', 'Stamina', 'Balance'];
+    var sections = [];
+    groups.forEach(function (g) {
+      types.forEach(function (type) {
+        var ofType = g.list.filter(function (p) { return p.type === type; });
+        if (!ofType.length) return;
+        var ownedCount = ofType.filter(function (p) { return isOwned(g.cat, p.id); }).length;
+        var gap = ofType.filter(function (p) { return (p.metaTier === 'S' || p.metaTier === 'A') && !isOwned(g.cat, p.id); });
+        if (!gap.length) return;
+        gap.sort(function (a, b) { return (a.metaTier === 'S' ? 0 : 1) - (b.metaTier === 'S' ? 0 : 1); });
+        var names = gap.map(function (p) { return partDisplayName(g.cat, p); });
+        var shown = names.slice(0, 3);
+        var nameStr = shown.length === 1 ? shown[0] : shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1];
+        if (names.length > 3) nameStr += ' (+' + (names.length - 3) + ' more)';
+        var verb = gap.length === 1 ? 'is' : 'are';
+        var haveClause = gap.length === 1 ? 'you don’t have it' : (gap.length === 2 ? 'you have neither' : 'you have none of them');
+        var singular = SINGULAR_LABEL[g.cat];
+        var summary = 'You own ' + ownedCount + ' ' + type + ' ' + (ownedCount === 1 ? singular : singular + 's') +
+          '; ' + nameStr + ' ' + verb + ' top tier and ' + haveClause + '.';
+        sections.push({ cat: g.cat, type: type, label: g.label, summary: summary, parts: gap });
+      });
+    });
+
+    if (!sections.length) {
+      var anyTiered = groups.some(function (g) { return g.list.some(function (p) { return !!p.metaTier; }); });
+      container.innerHTML = '<div class="empty-state">' + (anyTiered
+        ? 'No gaps right now — you own every S/A-tier part that’s been synced.'
+        : 'No meta tier data yet — sync against your community tier list (e.g. bbxhub.net) by adding metaTier to parts in the data files, then this view fills in.') + '</div>';
+      return;
+    }
+
+    container.innerHTML = sections.map(function (s) {
+      return '<div class="meta-gap-section">' +
+        '<div class="meta-gap-title">' + escapeHtml(s.type) + ' ' + escapeHtml(s.label) + '</div>' +
+        '<p class="hint">' + escapeHtml(s.summary) + '</p>' +
+        s.parts.map(function (p) {
+          return '<div class="suggested-part-row" data-cat="' + s.cat + '" data-id="' + escapeAttr(p.id) + '">' +
+            '<img src="' + partImg(p) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
+            '<div><div class="name">' + escapeHtml(partDisplayName(s.cat, p)) + ' ' + metaTierBadgeHTML(s.cat, p.id) + '</div>' +
+            (p.metaUpdated ? '<div class="reason">Tier as of ' + escapeHtml(p.metaUpdated) + '</div>' : '') + '</div>' +
+            '</div>';
+        }).join('') +
+      '</div>';
+    }).join('');
+
+    container.querySelectorAll('.suggested-part-row').forEach(function (row) {
+      row.addEventListener('click', function () { openPartModal(row.dataset.cat, row.dataset.id); });
+    });
   }
 
   // ---------------- provenance explanation sheet ----------------
@@ -1733,22 +2058,12 @@
   function renderBattleStats() {
     var container = document.getElementById('battleStats');
     if (!store.battles.length) { container.innerHTML = '<div class="empty-state">Log some battles to see part win rates.</div>'; return; }
-    var tally = {};
-    function bump(cat, id, won) {
-      if (!id) return;
-      var key = cat + ':' + id;
-      if (!tally[key]) tally[key] = { wins: 0, losses: 0, cat: cat, id: id };
-      if (won) tally[key].wins++; else tally[key].losses++;
-    }
-    store.battles.forEach(function (b) {
-      var winnerCombo = b.winner === 'A' ? b.comboA : b.comboB;
-      var loserCombo = b.winner === 'A' ? b.comboB : b.comboA;
-      comboBladeIdsLocal(winnerCombo).forEach(function (id) { bump('blades', id, true); });
-      comboBladeIdsLocal(loserCombo).forEach(function (id) { bump('blades', id, false); });
-      bump('ratchets', winnerCombo.ratchet, true); bump('ratchets', loserCombo.ratchet, false);
-      bump('bits', winnerCombo.bit, true); bump('bits', loserCombo.bit, false);
+    var tally = partBattleTally();
+    var rows = Object.keys(tally).map(function (k) {
+      var parts = k.split(':');
+      var r = tally[k]; r.cat = parts[0]; r.id = parts[1];
+      return r;
     });
-    var rows = Object.keys(tally).map(function (k) { return tally[k]; });
     rows.forEach(function (r) { r.total = r.wins + r.losses; r.pct = r.total ? Math.round(r.wins / r.total * 100) : 0; });
     rows.sort(function (a, b) { return b.pct - a.pct || b.total - a.total; });
     container.innerHTML = rows.map(function (r) {
@@ -1814,6 +2129,7 @@
   refreshComboSelects();
   renderOwnershipSummary();
   renderSavedCombos();
+  renderSavedDecks();
   renderRoleBoard();
   renderTuningPanel();
   renderSuggestedParts();

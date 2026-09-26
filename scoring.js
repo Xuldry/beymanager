@@ -46,30 +46,33 @@
 
   var LEARN = { rate: 1.2, attributionBoost: 2.5, sampleCap: 12 };
 
-  var RANGE_SCALE = 0.35;      // max +/- swing at zero confidence
-  var RANGE_CONFIDENCE_FLOOR = 0.85; // at/above this avg confidence, show a precise number
+  // Known-real ratchets with a reputation for bursting easily — a concrete,
+  // checkable fact rather than a guessed burst-resistance number. Add more
+  // ids here as they're confirmed, rather than inventing a stat for them.
+  var BURST_PRONE_RATCHET_IDS = ['2-60'];
 
-  var PENALTIES = [
+  // Plain warning flags, no score effect. A flag the user can read and judge
+  // beats a multiplier they can't verify — see WARNING_FLAGS below. Kept
+  // data-driven ({id, label, test}) so more can be added without touching
+  // the code that renders/evaluates them.
+  var WARNING_FLAGS = [
     {
-      name: 'burstRisk',
-      reason: 'Low-burst-resistance ratchet — this combo pops out easily.',
-      factor: 0.6,
-      test: function (m, parts) { return parts.ratchetStats && parts.ratchetStats.burst.value <= 3; }
-    },
-    {
-      name: 'heightCoherence',
-      reason: 'A high-grip (attack) bit on a tall ratchet fights its own attack angle.',
-      factor: 0.75,
+      id: 'tallAggressive',
+      label: 'Tall + aggressive: tips over easily.',
       test: function (m, parts) {
         return !!(parts.bitStats && parts.bitStats.grip.value >= 7 &&
           parts.ratchet && typeof parts.ratchet.heightTenths === 'number' && parts.ratchet.heightTenths >= 70);
       }
     },
     {
-      name: 'recoilGrip',
-      reason: 'High-recoil blade on a high-grip bit — the blade throws itself off its own rebound.',
-      factor: 0.8,
+      id: 'recoilGrip',
+      label: 'Blade recoil fights the bit’s aggression.',
       test: function (m, parts) { return m.recoil >= 7 && !!(parts.bitStats && parts.bitStats.grip.value >= 7); }
+    },
+    {
+      id: 'burstProneRatchet',
+      label: 'Bursts easily.',
+      test: function (m, parts) { return !!(parts.ratchet && BURST_PRONE_RATCHET_IDS.indexOf(parts.ratchet.id) !== -1); }
     }
   ];
 
@@ -368,34 +371,13 @@
     return sum;
   }
 
-  function applyPenalties(metrics, parts) {
-    var multiplier = 1, fired = [];
-    PENALTIES.forEach(function (p) {
-      if (p.test(metrics, parts)) { multiplier *= p.factor; fired.push({ name: p.name, factor: p.factor, reason: p.reason }); }
+  // Plain fired-flag list, no score effect — see WARNING_FLAGS above.
+  function evaluateWarningFlags(metrics, parts) {
+    var fired = [];
+    WARNING_FLAGS.forEach(function (f) {
+      if (f.test(metrics, parts)) fired.push({ id: f.id, label: f.label });
     });
-    return { multiplier: multiplier, fired: fired };
-  }
-
-  // Confidence-weighted uncertainty -> +/- display range. High-confidence
-  // combos (mostly measured/well-sampled-learned stats) get a precise
-  // number; shaky ones get an honest range instead of a fake-precise digit.
-  function uncertaintyRange(score, weights, bladeAgg, ratchetStats, bitStatsResolved) {
-    var confSum = 0, wSum = 0;
-    var confByKey = {
-      atk: (bladeAgg.atk.confidence + ratchetStats.atk.confidence + bitStatsResolved.atk.confidence) / 3,
-      def: (bladeAgg.def.confidence + ratchetStats.def.confidence + bitStatsResolved.def.confidence) / 3,
-      sta: (bladeAgg.sta.confidence + ratchetStats.sta.confidence + bitStatsResolved.sta.confidence) / 3,
-      burst: (ratchetStats.burst.confidence + bitStatsResolved.burst.confidence) / 2,
-      xdash: bitStatsResolved.grip.confidence
-    };
-    Object.keys(weights).forEach(function (k) {
-      var c = confByKey[k] != null ? confByKey[k] : 0.5;
-      confSum += c * weights[k]; wSum += weights[k];
-    });
-    var avgConfidence = wSum ? confSum / wSum : 0.5;
-    if (avgConfidence >= RANGE_CONFIDENCE_FLOOR) return null;
-    var half = Math.abs(score) * (1 - avgConfidence) * RANGE_SCALE;
-    return { low: round2(score - half), high: round2(score + half), avgConfidence: round2(avgConfidence) };
+    return fired;
   }
 
   // Public: score one combo for one role.
@@ -411,19 +393,14 @@
     var bStats = bitStatsOf(bit, bootstrapCache);
 
     var m = comboMetrics(bladeAgg, rStats, bStats);
-    var base = weightedSum(m, weights);
-    var pen = applyPenalties(m, { ratchet: ratchet, bit: bit, ratchetStats: rStats, bitStats: bStats });
-    var score = round2(base * pen.multiplier);
-    var range = uncertaintyRange(score, weights, bladeAgg, rStats, bStats);
+    var score = round1(weightedSum(m, weights));
+    var warnings = evaluateWarningFlags(m, { ratchet: ratchet, bit: bit, ratchetStats: rStats, bitStats: bStats });
 
     return {
       role: role,
       metrics: m,
-      baseScore: round2(base),
-      penalties: pen.fired,
-      penaltyMultiplier: round2(pen.multiplier),
+      warnings: warnings,
       score: score,
-      range: range,
       bladeStats: bladeAgg,
       ratchetStats: rStats,
       bitStats: bStats
@@ -527,7 +504,8 @@
 
   window.BeyScoring = {
     DEFAULT_ROLE_WEIGHTS: DEFAULT_ROLE_WEIGHTS,
-    PENALTIES: PENALTIES,
+    WARNING_FLAGS: WARNING_FLAGS,
+    evaluateWarningFlags: evaluateWarningFlags,
     init: init,
     ensureShape: ensureShape,
     shapeAllParts: shapeAllParts,

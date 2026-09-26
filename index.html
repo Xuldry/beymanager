@@ -15,7 +15,7 @@
   <div class="brand">
     <span class="brand-icon">◈</span>
     <div>
-      <h1>BeyManager <span class="build-tag">Build 5</span></h1>
+      <h1>BeyManager <span class="build-tag">Build 6</span></h1>
       <p class="tagline">Your Beyblade collection, organized</p>
     </div>
   </div>
@@ -46,9 +46,18 @@
       </div>
     </div>
 
-    <h3 class="section-title">Saved Combos</h3>
+    <div class="section-title-row">
+      <h3 class="section-title" style="margin:0">Saved Combos</h3>
+      <button class="btn-secondary" id="btnDeckMode" style="width:auto;min-height:36px;padding:6px 12px">Build a deck</button>
+    </div>
     <div class="saved-combos-controls" id="savedCombosControls"></div>
     <div class="saved-combos" id="savedCombos"></div>
+
+    <h3 class="section-title">Saved Decks</h3>
+    <p class="hint">A 3-on-3 set you're bringing to a tournament — flags a repeated ratchet, since that's illegal.</p>
+    <div class="saved-decks" id="savedDecks"></div>
+
+    <div class="deck-sticky-bar" id="deckStickyBar"></div>
   </section>
 
   <!-- BUILDER TAB -->
@@ -102,6 +111,7 @@
       <button class="subtab-btn" data-role="stamina">Stamina</button>
       <button class="subtab-btn" data-role="defense">Defense</button>
       <button class="subtab-btn" data-role="compare">Compare</button>
+      <button class="subtab-btn" data-role="meta-gap">Meta Gap</button>
     </div>
     <div class="ranked-combos" id="roleBoard"></div>
 

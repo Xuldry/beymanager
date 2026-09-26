@@ -394,11 +394,89 @@ body {
   font-size: 16px;
 }
 
-.saved-combos, .ranked-combos {
+.saved-combos, .ranked-combos, .saved-decks {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 24px 0 10px;
+}
+.section-title-row .section-title { margin: 0; }
+
+#btnDeckMode.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+/* ---- deck builder: selection + sticky bar + saved decks ---- */
+.combo-chip-v2.deck-selectable { cursor: pointer; }
+.combo-chip-v2.deck-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+
+.deck-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.deck-sticky-bar {
+  display: none;
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-top: 8px;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.35);
+}
+.deck-sticky-bar.open { display: block; }
+
+/* Reserve room so the sticky bar never covers the last combo card */
+#panel-mybeys.deck-bar-open .saved-combos { padding-bottom: 8px; }
+
+.deck-names { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.deck-role-mix { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+.deck-clash-warning { font-size: 12px; color: var(--attack); font-weight: 600; margin-bottom: 8px; }
+.deck-flash { font-size: 13px; font-weight: 600; color: var(--attack); text-align: center; padding: 6px 0; }
+
+.deck-bar-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.deck-sticky-bar input[type="text"] {
+  width: 100%;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 10px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.saved-deck-row {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+.deck-row-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.deck-row-name { font-weight: 700; font-size: 13px; }
 
 .combo-chip {
   background: var(--bg-elev);
@@ -436,6 +514,7 @@ body {
   border-radius: var(--radius);
   padding: 10px 12px;
   font-size: 13px;
+  position: relative;
 }
 
 .cc-row {
@@ -860,6 +939,16 @@ body {
   font-weight: 600;
   font-size: 13px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.role-card-basis {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-dim);
+  text-transform: none;
 }
 
 .role-card-score {
@@ -872,7 +961,7 @@ body {
   font-weight: 700;
 }
 
-.role-card-score .range {
+.role-card-score .sub {
   font-size: 10px;
   color: var(--text-dim);
   display: block;
@@ -907,21 +996,50 @@ body {
 .breakdown-row .b-fill { height: 100%; background: var(--accent); border-radius: 4px; }
 .breakdown-row .b-val { width: 60px; flex-shrink: 0; text-align: right; font-variant-numeric: tabular-nums; }
 
-.penalty-row {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: rgba(255,91,91,0.08);
-  border: 1px solid rgba(255,91,91,0.3);
+.warning-row {
+  background: rgba(255,122,26,0.08);
+  border: 1px solid rgba(255,122,26,0.3);
   border-radius: 8px;
   padding: 8px 10px;
   margin-top: 6px;
   font-size: 12px;
+  color: var(--text);
 }
 
-.penalty-row .p-name { font-weight: 700; color: var(--attack); }
-.penalty-row .p-reason { color: var(--text-dim); }
-.no-penalties { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+.no-warnings { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+
+.meta-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 800;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  vertical-align: middle;
+  cursor: default;
+}
+.meta-tier-badge.tier-S { background: #ffd700; color: #1a1400; }
+.meta-tier-badge.tier-A { background: #c0c0c0; color: #1a1a1a; }
+.meta-tier-badge.tier-B { background: #cd7f32; color: #1a0f00; }
+
+.part-card-winrate {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--stamina);
+  z-index: 1;
+}
+
+.meta-gap-section { margin-bottom: 16px; }
+.meta-gap-title { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
 
 /* ---- provenance badges ---- */
 .prov-badge {
@@ -1314,6 +1432,7 @@ body {
 .compare-scores .cs-value { font-size: 16px; font-weight: 700; }
 .compare-delta.up { color: var(--stamina); }
 .compare-delta.down { color: var(--attack); }
+.compare-delta.flat { color: var(--text-dim); }
 
 @media (min-width: 768px) {
   .compare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
