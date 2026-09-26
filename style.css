@@ -649,7 +649,14 @@ body {
 .cc-stat.atk { color: var(--attack); }
 .cc-stat.def { color: var(--defense); }
 .cc-stat.sta { color: var(--stamina); }
-.cc-stat.total { color: var(--text); }
+.cc-stat-best { background: var(--bg-elev); box-shadow: 0 0 0 1px currentColor inset; }
+
+.preview-warning {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--accent);
+  margin-right: 8px;
+}
 
 .combo-chip-v2 {
   cursor: pointer;
@@ -788,12 +795,6 @@ body {
   font-size: 11px;
   color: var(--text-dim);
   margin-top: 2px;
-}
-
-.ranked-parts {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
 .suggested-part-row {
@@ -1030,9 +1031,6 @@ body {
   color: var(--stamina);
   z-index: 1;
 }
-
-.meta-gap-section { margin-bottom: 16px; }
-.meta-gap-title { font-weight: 700; font-size: 13px; margin-bottom: 2px; }
 
 /* ---- provenance badges ---- */
 .prov-badge {
@@ -1373,6 +1371,7 @@ body {
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
+  cursor: pointer;
 }
 
 .winrate-row:last-child { border-bottom: none; }

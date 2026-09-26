@@ -108,10 +108,10 @@
   var store = loadStore();
   rebuildDerived();
 
-  // backupVersion 3: adds decks (3-combo sets for the 3-on-3 ratchet check),
-  // on top of backupVersion 2's ordinalLists/measuredOverrides/learnedStats/
-  // weightOverrides/battles. Purely additive — an older backup still imports
-  // cleanly, it just starts with no saved decks, never wiped or rejected.
+  // backupVersion 4: adds opponentProfiles (reusable Battle Log opponents),
+  // on top of backupVersion 3's decks and backupVersion 2's ordinalLists/
+  // measuredOverrides/learnedStats/weightOverrides/battles. Purely additive —
+  // an older backup still imports cleanly, it just starts with none saved.
   function normalizeStore(s) {
     if (!s || typeof s !== 'object') s = {};
     if (!s.owned || typeof s.owned !== 'object') s.owned = {};
@@ -120,6 +120,7 @@
     if (!s.owned.bits) s.owned.bits = {};
     if (!Array.isArray(s.combos)) s.combos = [];
     if (!Array.isArray(s.decks)) s.decks = [];
+    if (!Array.isArray(s.opponentProfiles)) s.opponentProfiles = [];
     if (!s.customParts || typeof s.customParts !== 'object') s.customParts = {};
     if (!Array.isArray(s.customParts.blades)) s.customParts.blades = [];
     if (!Array.isArray(s.customParts.ratchets)) s.customParts.ratchets = [];
@@ -172,7 +173,7 @@
   }
 
   document.getElementById('btnExportBackup').addEventListener('click', function () {
-    var payload = { app: 'beymanager', backupVersion: 3, exportedAt: new Date().toISOString(), data: store };
+    var payload = { app: 'beymanager', backupVersion: 4, exportedAt: new Date().toISOString(), data: store };
     var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -232,7 +233,6 @@
       renderSavedCombos();
       renderSavedDecks();
       renderRoleBoard();
-      renderSuggestedParts();
       renderBattleEntry();
       renderBattleLog();
       renderBattleStats();
@@ -242,98 +242,6 @@
     modal.classList.add('open');
   }
 
-  // ---------------- scoring engine ----------------
-  var TYPE_BASE = {
-    Attack: { atk: 70, def: 15, sta: 15 },
-    Defense: { atk: 15, def: 70, sta: 15 },
-    Stamina: { atk: 15, def: 15, sta: 70 },
-    Balance: { atk: 33, def: 34, sta: 33 }
-  };
-
-  function cloneBase(type) {
-    var t = TYPE_BASE[type] || TYPE_BASE.Balance;
-    return { atk: t.atk, def: t.def, sta: t.sta };
-  }
-
-  function bladeStats(blade) {
-    if (!blade) return { atk: 0, def: 0, sta: 0 };
-    var s = cloneBase(blade.type);
-    if (typeof blade.weight === 'number') {
-      var delta = blade.weight - 34;
-      s.def += delta * 0.5;
-      s.sta += delta * 0.3;
-      s.atk -= delta * 0.4;
-    }
-    if (typeof blade.contactPoints === 'number') {
-      s.def += blade.contactPoints * 1.5;
-    }
-    return s;
-  }
-
-  function cxBladeStats(lock, main, assist) {
-    var parts = [lock, main, assist].filter(Boolean);
-    if (!parts.length) return { atk: 0, def: 0, sta: 0 };
-    var acc = { atk: 0, def: 0, sta: 0 };
-    parts.forEach(function (p) {
-      var s = cloneBase(p.type);
-      acc.atk += s.atk; acc.def += s.def; acc.sta += s.sta;
-    });
-    var n = parts.length;
-    return { atk: acc.atk / n, def: acc.def / n, sta: acc.sta / n };
-  }
-
-  function ratchetStats(ratchet) {
-    if (!ratchet) return { atk: 0, def: 0, sta: 0 };
-    var s = cloneBase(ratchet.type);
-    var cp = ratchet.contactPoints;
-    var cpNum = typeof cp === 'number' ? cp : (cp === 'M' ? 5 : 0);
-    s.def += cpNum * 3;
-    if (typeof ratchet.height === 'number') {
-      if (ratchet.height >= 75) s.atk += 8;
-      else if (ratchet.height <= 55) s.sta += 8;
-      else s.def += 4;
-    }
-    return s;
-  }
-
-  function bitStats(bit) {
-    if (!bit) return { atk: 0, def: 0, sta: 0 };
-    var s = cloneBase(bit.type);
-    if (typeof bit.gearTeeth === 'number') s.atk += bit.gearTeeth * 0.8;
-    var shape = (bit.shape || '').toLowerCase();
-    if (shape === 'flat') s.atk += 10;
-    else if (shape === 'round') s.sta += 10;
-    else if (shape === 'sharp') s.def += 8;
-    else { s.atk += 4; s.def += 4; s.sta += 4; }
-    return s;
-  }
-
-  function combineStats(blade, ratchet, bit) {
-    var raw = {
-      atk: blade.atk * 0.5 + ratchet.atk * 0.25 + bit.atk * 0.25,
-      def: blade.def * 0.5 + ratchet.def * 0.25 + bit.def * 0.25,
-      sta: blade.sta * 0.5 + ratchet.sta * 0.25 + bit.sta * 0.25
-    };
-    var clamped = {
-      atk: Math.max(0, Math.min(100, Math.round(raw.atk))),
-      def: Math.max(0, Math.min(100, Math.round(raw.def))),
-      sta: Math.max(0, Math.min(100, Math.round(raw.sta)))
-    };
-    clamped.total = clamped.atk + clamped.def + clamped.sta;
-    var top = 'atk';
-    if (clamped.def > clamped[top]) top = 'def';
-    if (clamped.sta > clamped[top]) top = 'sta';
-    clamped.archetype = { atk: 'Attack', def: 'Defense', sta: 'Stamina' }[top];
-    return clamped;
-  }
-
-  function scoreStandardCombo(blade, ratchet, bit) {
-    return combineStats(bladeStats(blade), ratchetStats(ratchet), bitStats(bit));
-  }
-
-  function scoreCXCombo(lock, main, assist, ratchet, bit) {
-    return combineStats(cxBladeStats(lock, main, assist), ratchetStats(ratchet), bitStats(bit));
-  }
 
   // ---------------- tab navigation ----------------
   document.getElementById('mainTabs').addEventListener('click', function (e) {
@@ -344,7 +252,7 @@
     btn.classList.add('active');
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'mybeys') { renderOwnershipSummary(); renderSavedCombos(); }
-    if (btn.dataset.tab === 'builder') { refreshComboSelects(); renderRoleBoard(); renderSuggestedParts(); renderTuningPanel(); }
+    if (btn.dataset.tab === 'builder') { refreshComboSelects(); renderRoleBoard(); renderTuningPanel(); }
     if (btn.dataset.tab === 'battles') { renderBattleEntry(); renderBattleLog(); renderBattleStats(); }
   });
 
@@ -846,36 +754,37 @@
 
   function updateComboPreview() {
     var combo = getCurrentCombo();
-    var stats;
-    var ready;
-    if (combo.isCX) {
-      ready = combo.lock || combo.main || combo.assist;
-      stats = scoreCXCombo(combo.lock, combo.main, combo.assist, combo.ratchet, combo.bit);
-    } else {
-      ready = !!combo.blade;
-      stats = scoreStandardCombo(combo.blade, combo.ratchet, combo.bit);
-    }
-    renderStatBars(stats);
-    var meta = document.getElementById('comboMeta');
-    var weight = 0;
-    if (!combo.isCX && combo.blade && typeof combo.blade.weight === 'number') weight += combo.blade.weight;
-    var metaBits = ['Archetype: ' + (ready ? stats.archetype : '—'), 'Total score: ' + stats.total];
-    if (weight) metaBits.push('Blade weight: ' + weight + 'g');
-    meta.innerHTML = metaBits.map(function (m) { return '<span>' + m + '</span>'; }).join('');
+    var ready = (combo.isCX ? !!(combo.lock || combo.main || combo.assist) : !!combo.blade) && !!combo.ratchet && !!combo.bit;
     document.getElementById('btnSaveCombo').disabled = !ready;
+    if (!ready) {
+      document.getElementById('statBars').innerHTML = '<div class="empty-state">Pick a blade, ratchet and bit to see scores.</div>';
+      document.getElementById('comboMeta').innerHTML = '';
+      return;
+    }
+    var all = combo.isCX
+      ? window.BeyScoring.scoreComboAllRoles(combo.main, combo.ratchet, combo.bit, combo.lock, combo.assist, BOOTSTRAP_CACHE)
+      : window.BeyScoring.scoreComboAllRoles(combo.blade, combo.ratchet, combo.bit, null, null, BOOTSTRAP_CACHE);
+    renderStatBars(all);
+    var best = ['attack', 'stamina', 'defense'].reduce(function (a, b) { return all[b].score > all[a].score ? b : a; });
+    var warnings = all[best].warnings;
+    var metaBits = ['Best fit: ' + capitalize(best)];
+    if (!combo.isCX && combo.blade && typeof combo.blade.weight === 'number') metaBits.push('Blade weight: ' + combo.blade.weight + 'g');
+    var meta = document.getElementById('comboMeta');
+    meta.innerHTML = metaBits.map(function (m) { return '<span>' + m + '</span>'; }).join('') +
+      warnings.map(function (w) { return '<span class="preview-warning">⚠ ' + escapeHtml(w.label) + '</span>'; }).join('');
   }
 
-  function renderStatBars(stats) {
+  function renderStatBars(all) {
     var rows = [
-      ['ATK', 'atk', stats.atk],
-      ['DEF', 'def', stats.def],
-      ['STA', 'sta', stats.sta]
+      ['ATK', 'atk', all.attack.score],
+      ['STA', 'sta', all.stamina.score],
+      ['DEF', 'def', all.defense.score]
     ];
     document.getElementById('statBars').innerHTML = rows.map(function (r) {
       return '<div class="stat-row">' +
         '<div class="stat-label">' + r[0] + '</div>' +
-        '<div class="stat-track"><div class="stat-fill ' + r[1] + '" style="width:' + r[2] + '%"></div></div>' +
-        '<div class="stat-value">' + r[2] + '</div>' +
+        '<div class="stat-track"><div class="stat-fill ' + r[1] + '" style="width:' + clampPct(r[2] * 10) + '%"></div></div>' +
+        '<div class="stat-value">' + r[2].toFixed(1) + '</div>' +
         '</div>';
     }).join('');
   }
@@ -911,11 +820,17 @@
     return blade ? partImg(blade) : PLACEHOLDER_IMG;
   }
 
+  // The same engine the role board ranks with — a saved combo's three
+  // role scores, not a separate blended stat. Whichever call site used to
+  // read the old flat {atk,def,sta,total} shape now reads {attack,
+  // stamina,defense}.{score,...} instead.
   function comboScoreOf(entry) {
+    var ratchet = byId.ratchets[entry.ratchet];
+    var bit = byId.bits[entry.bit];
     if (entry.isCX) {
-      return scoreCXCombo(byId.blades[entry.lock], byId.blades[entry.main], byId.blades[entry.assist], byId.ratchets[entry.ratchet], byId.bits[entry.bit]);
+      return window.BeyScoring.scoreComboAllRoles(byId.blades[entry.main], ratchet, bit, byId.blades[entry.lock], byId.blades[entry.assist], BOOTSTRAP_CACHE);
     }
-    return scoreStandardCombo(byId.blades[entry.blade], byId.ratchets[entry.ratchet], byId.bits[entry.bit]);
+    return window.BeyScoring.scoreComboAllRoles(byId.blades[entry.blade], ratchet, bit, null, null, BOOTSTRAP_CACHE);
   }
 
   // Identifies a combo by its parts so we can tell whether a recommended
@@ -924,16 +839,21 @@
     return e.isCX ? ['cx', e.lock, e.main, e.assist, e.ratchet, e.bit].join('|') : ['std', e.blade, e.ratchet, e.bit].join('|');
   }
 
-  // Compact ATK/DEF/STA readout used anywhere a combo is listed (saved combos,
-  // best-combos ranking) so the full stat spread is visible, not just the
-  // single dominant archetype.
+  var ROLE_ABBR = { attack: 'ATK', stamina: 'STA', defense: 'DEF' };
+  var ROLE_CLASS = { attack: 'atk', stamina: 'sta', defense: 'def' };
+  function comboBestRole(stats) {
+    return ['attack', 'stamina', 'defense'].reduce(function (a, b) { return stats[b].score > stats[a].score ? b : a; });
+  }
+
+  // Compact per-role readout used anywhere a combo is listed (saved combos,
+  // combo detail modal) — the same three scores the role board ranks with,
+  // not a separate blended stat, so this number always means the same thing
+  // wherever it's shown.
   function comboStatChipsHTML(stats) {
-    return '<div class="cc-stats">' +
-      '<span class="cc-stat atk">ATK <b>' + stats.atk + '</b></span>' +
-      '<span class="cc-stat def">DEF <b>' + stats.def + '</b></span>' +
-      '<span class="cc-stat sta">STA <b>' + stats.sta + '</b></span>' +
-      '<span class="cc-stat total">Σ <b>' + stats.total + '</b></span>' +
-      '</div>';
+    var best = comboBestRole(stats);
+    return '<div class="cc-stats">' + ['attack', 'stamina', 'defense'].map(function (r) {
+      return '<span class="cc-stat ' + ROLE_CLASS[r] + (r === best ? ' cc-stat-best' : '') + '">' + ROLE_ABBR[r] + ' <b>' + stats[r].score.toFixed(1) + '</b></span>';
+    }).join('') + '</div>';
   }
 
   // Win/loss record for a saved combo is derived entirely from the Battle
@@ -1075,7 +995,7 @@
       '<select id="scfRatchet" class="filter-select">' + opts(ratchetIds, 'ratchets', savedCombosState.ratchet) + '</select>' +
       '<select id="scfBit" class="filter-select">' + opts(bitIds, 'bits', savedCombosState.bit) + '</select>' +
       '<select id="scfSort" class="filter-select">' +
-        ['total_desc:Total score (high→low)', 'atk_desc:Attack (high→low)', 'def_desc:Defense (high→low)', 'sta_desc:Stamina (high→low)',
+        ['total_desc:Best role score (high→low)', 'atk_desc:Attack (high→low)', 'def_desc:Defense (high→low)', 'sta_desc:Stamina (high→low)',
           'winrate_desc:Win rate (high→low)', 'wins_desc:Most wins', 'newest:Newest first'].map(function (o) {
           var parts = o.split(':');
           return '<option value="' + parts[0] + '"' + (parts[0] === savedCombosState.sort ? ' selected' : '') + '>' + parts[1] + '</option>';
@@ -1118,11 +1038,12 @@
         entryHasPart(row.entry, 'bits', savedCombosState.bit);
     });
 
+    function bestScore(stats) { return Math.max(stats.attack.score, stats.stamina.score, stats.defense.score); }
     var sorters = {
-      total_desc: function (a, b) { return b.stats.total - a.stats.total; },
-      atk_desc: function (a, b) { return b.stats.atk - a.stats.atk; },
-      def_desc: function (a, b) { return b.stats.def - a.stats.def; },
-      sta_desc: function (a, b) { return b.stats.sta - a.stats.sta; },
+      total_desc: function (a, b) { return bestScore(b.stats) - bestScore(a.stats); },
+      atk_desc: function (a, b) { return b.stats.attack.score - a.stats.attack.score; },
+      def_desc: function (a, b) { return b.stats.defense.score - a.stats.defense.score; },
+      sta_desc: function (a, b) { return b.stats.stamina.score - a.stats.stamina.score; },
       winrate_desc: function (a, b) { return (b.wl.pct == null ? -1 : b.wl.pct) - (a.wl.pct == null ? -1 : a.wl.pct); },
       wins_desc: function (a, b) { return b.wl.wins - a.wl.wins; },
       newest: function (a, b) { return b.idx - a.idx; }
@@ -1384,8 +1305,77 @@
     });
   }
 
+  // Inline part-editing picker for the combo detail modal — same shape as
+  // the Battle Log's opponent picker (opponentPickerHTML/wireOpponentPicker),
+  // unfiltered by ownership so editing never dead-ends on a part you no
+  // longer own.
+  function comboEditPickerHTML(entry) {
+    var isCX = !!entry.isCX;
+    return '<div class="combo-picker" style="margin:10px 0">' +
+      '<label class="owned-toggle standalone"><input type="checkbox" id="editCXToggle"' + (isCX ? ' checked' : '') + '> CX combo (Lock/Main/Assist)</label>' +
+      '<div class="picker-group" id="editStdGroup" style="display:' + (isCX ? 'none' : '') + '"><label>Blade</label><select id="editBlade">' + optionsHTML(STANDARD_BLADES, 'blades', false) + '</select></div>' +
+      '<div class="picker-group cx-only" id="editCXGroup" style="display:' + (isCX ? '' : 'none') + '">' +
+        '<label>Lock Chip</label><select id="editLock">' + optionsHTML(CX_LOCKCHIPS, 'blades', false) + '</select>' +
+        '<label>Main Blade</label><select id="editMain">' + optionsHTML(CX_MAINBLADES, 'blades', false) + '</select>' +
+        '<label>Assist Blade</label><select id="editAssist">' + optionsHTML(CX_ASSISTBLADES, 'blades', false) + '</select>' +
+      '</div>' +
+      '<div class="picker-group"><label>Ratchet</label><select id="editRatchet">' + optionsHTML(RATCHETS, 'ratchets', false) + '</select></div>' +
+      '<div class="picker-group"><label>Bit</label><select id="editBit">' + optionsHTML(BITS, 'bits', false) + '</select></div>' +
+      '<p class="hint" id="editWarning" style="color:var(--attack);display:none">Pick at least a blade (or Lock/Main/Assist for CX), a ratchet, and a bit.</p>' +
+      '<div class="opponent-picker-btns">' +
+        '<button class="btn-primary" id="editSaveBtn">Save</button>' +
+        '<button class="btn-secondary" id="editCancelBtn">Cancel</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function fillComboEditPicker(entry) {
+    if (entry.isCX) {
+      if (entry.lock) document.getElementById('editLock').value = entry.lock;
+      if (entry.main) document.getElementById('editMain').value = entry.main;
+      if (entry.assist) document.getElementById('editAssist').value = entry.assist;
+    } else if (entry.blade) {
+      document.getElementById('editBlade').value = entry.blade;
+    }
+    if (entry.ratchet) document.getElementById('editRatchet').value = entry.ratchet;
+    if (entry.bit) document.getElementById('editBit').value = entry.bit;
+  }
+
+  function wireComboEditPicker(idx) {
+    var editCX = document.getElementById('editCXToggle');
+    editCX.addEventListener('change', function () {
+      document.getElementById('editStdGroup').style.display = editCX.checked ? 'none' : '';
+      document.getElementById('editCXGroup').style.display = editCX.checked ? '' : 'none';
+    });
+    document.getElementById('editCancelBtn').addEventListener('click', function () { openComboModal(idx, false); });
+    document.getElementById('editSaveBtn').addEventListener('click', function () {
+      var entry = store.combos[idx];
+      var isCX = editCX.checked;
+      var ratchet = document.getElementById('editRatchet').value;
+      var bit = document.getElementById('editBit').value;
+      var newEntry;
+      if (isCX) {
+        var lock = document.getElementById('editLock').value;
+        var main = document.getElementById('editMain').value;
+        var assist = document.getElementById('editAssist').value;
+        if (!(lock || main || assist) || !ratchet || !bit) { document.getElementById('editWarning').style.display = ''; return; }
+        newEntry = { isCX: true, lock: lock || undefined, main: main || undefined, assist: assist || undefined, ratchet: ratchet, bit: bit };
+      } else {
+        var blade = document.getElementById('editBlade').value;
+        if (!blade || !ratchet || !bit) { document.getElementById('editWarning').style.display = ''; return; }
+        newEntry = { isCX: false, blade: blade, ratchet: ratchet, bit: bit };
+      }
+      if (entry.name) newEntry.name = entry.name;
+      store.combos[idx] = newEntry;
+      saveStore();
+      renderSavedCombos();
+      renderSavedDecks();
+      openComboModal(idx, false);
+    });
+  }
+
   // ---------------- combo detail modal: parts, record, per-combo battle log ----------------
-  function openComboModal(idx) {
+  function openComboModal(idx, editing) {
     var entry = store.combos[idx];
     if (!entry) return;
     var stats = comboScoreOf(entry);
@@ -1393,16 +1383,23 @@
     var autoLabel = comboLabel(entry);
     var displayName = entry.name || autoLabel;
 
-    var partRows = [];
-    if (entry.isCX) {
-      partRows.push(['Lock Chip', entry.lock && byId.blades[entry.lock] ? partDisplayName('blades', byId.blades[entry.lock]) : '—']);
-      partRows.push(['Main Blade', entry.main && byId.blades[entry.main] ? partDisplayName('blades', byId.blades[entry.main]) : '—']);
-      partRows.push(['Assist Blade', entry.assist && byId.blades[entry.assist] ? partDisplayName('blades', byId.blades[entry.assist]) : '—']);
+    var partsHTML;
+    if (editing) {
+      partsHTML = comboEditPickerHTML(entry);
     } else {
-      partRows.push(['Blade', entry.blade && byId.blades[entry.blade] ? partDisplayName('blades', byId.blades[entry.blade]) : '—']);
+      var partRows = [];
+      if (entry.isCX) {
+        partRows.push(['Lock Chip', entry.lock && byId.blades[entry.lock] ? partDisplayName('blades', byId.blades[entry.lock]) : '—']);
+        partRows.push(['Main Blade', entry.main && byId.blades[entry.main] ? partDisplayName('blades', byId.blades[entry.main]) : '—']);
+        partRows.push(['Assist Blade', entry.assist && byId.blades[entry.assist] ? partDisplayName('blades', byId.blades[entry.assist]) : '—']);
+      } else {
+        partRows.push(['Blade', entry.blade && byId.blades[entry.blade] ? partDisplayName('blades', byId.blades[entry.blade]) : '—']);
+      }
+      partRows.push(['Ratchet', entry.ratchet || '—']);
+      partRows.push(['Bit', bitName(entry.bit)]);
+      partsHTML = partRows.map(function (r) { return '<div class="modal-spec-row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>'; }).join('') +
+        '<button class="btn-icon" id="editPartsBtn" style="margin-top:6px">✏️ Edit parts</button>';
     }
-    partRows.push(['Ratchet', entry.ratchet || '—']);
-    partRows.push(['Bit', bitName(entry.bit)]);
 
     var wlHTML = wl.total
       ? '<div class="combo-wl-summary"><span class="wl-win">' + wl.wins + 'W</span><span class="wl-loss">' + wl.losses + 'L</span><span class="wl-pct">' + wl.pct + '% win rate</span></div>'
@@ -1425,11 +1422,18 @@
       '<h2 style="margin:0 0 4px">' + escapeHtml(displayName) + '</h2>' +
       (entry.name ? '<p class="hint" style="margin:0 0 10px">' + escapeHtml(autoLabel) + '</p>' : '') +
       comboStatChipsHTML(stats) +
-      partRows.map(function (r) { return '<div class="modal-spec-row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>'; }).join('') +
+      partsHTML +
       '<div class="tuning-block-title" style="margin-top:14px">Battle record</div>' +
       wlHTML +
       (battleRows.length ? '<div class="tuning-block-title" style="margin-top:14px">Battle log (' + battleRows.length + ')</div><div class="combo-detail-battles">' + battleLogHTML + '</div>' : '') +
       '</div>';
+    if (editing) {
+      fillComboEditPicker(entry);
+      wireComboEditPicker(idx);
+    } else {
+      var editBtn = document.getElementById('editPartsBtn');
+      if (editBtn) editBtn.addEventListener('click', function () { openComboModal(idx, true); });
+    }
     modal.classList.add('open');
   }
 
@@ -1506,7 +1510,7 @@
       attack: 'Ranked by your battle record when you have enough logged (5+ battles), estimated Attack score otherwise. Estimates use only parts you own.',
       stamina: 'Ranked by your battle record when you have enough logged (5+ battles), estimated Stamina score otherwise. Estimates use only parts you own.',
       defense: 'Ranked by your battle record when you have enough logged (5+ battles), estimated Defense score otherwise. Estimates use only parts you own.',
-      'meta-gap': 'Top-tier parts (per your manually-synced tier list) that you don’t own yet.'
+      'meta-gap': 'What to buy next — top-tier parts (per your synced tier list) first, gap-filling suggestions after.'
     };
     document.getElementById('roleHint') && (document.getElementById('roleHint').textContent = hints[roleBoardState]);
     renderRoleBoard();
@@ -1578,7 +1582,7 @@
 
   function renderRoleBoard() {
     var container = document.getElementById('roleBoard');
-    if (roleBoardState === 'meta-gap') { renderMetaGapView(container); return; }
+    if (roleBoardState === 'meta-gap') { renderBuyNextView(container); return; }
 
     var candidates = ownedComboCandidates();
     if (!candidates.length) {
@@ -1663,64 +1667,59 @@
     });
   }
 
-  // The competitive-buying-guide view: top-tier (S/A) parts the user
-  // doesn't own, grouped by category+type, with a plain-English gap summary.
-  // Tier data is entirely manual (see metaTierBadgeHTML) — this view is
-  // just a filter/report over whatever the user has synced in, and is
-  // expected to be empty until they do that syncing pass.
-  var SINGULAR_LABEL = { blades: 'blade', ratchets: 'ratchet', bits: 'bit' };
+  // The single "what should I buy next" view — merges what used to be two
+  // separate, uncoordinated features: a manually-synced community tier gap
+  // (top-tier parts you don't own — real data, when it exists) and a
+  // type-diversity/set-popularity heuristic (a guess, for everything else).
+  // Same precedent as battle-record-vs-estimate: real data always outranks
+  // the heuristic, and every row says which basis it used.
+  function renderBuyNextView(container) {
+    var ownedBlades = ownedList('blades', STANDARD_BLADES);
+    var ownedRatchets = ownedList('ratchets', RATCHETS);
+    var ownedBits = ownedList('bits', BITS);
 
-  function renderMetaGapView(container) {
-    var groups = [
-      { cat: 'blades', list: STANDARD_BLADES.concat(CX_LOCKCHIPS, CX_MAINBLADES, CX_ASSISTBLADES), label: 'Blades' },
-      { cat: 'ratchets', list: RATCHETS, label: 'Ratchets' },
-      { cat: 'bits', list: BITS, label: 'Bits' }
-    ];
-    var types = ['Attack', 'Defense', 'Stamina', 'Balance'];
-    var sections = [];
-    groups.forEach(function (g) {
-      types.forEach(function (type) {
-        var ofType = g.list.filter(function (p) { return p.type === type; });
-        if (!ofType.length) return;
-        var ownedCount = ofType.filter(function (p) { return isOwned(g.cat, p.id); }).length;
-        var gap = ofType.filter(function (p) { return (p.metaTier === 'S' || p.metaTier === 'A') && !isOwned(g.cat, p.id); });
-        if (!gap.length) return;
-        gap.sort(function (a, b) { return (a.metaTier === 'S' ? 0 : 1) - (b.metaTier === 'S' ? 0 : 1); });
-        var names = gap.map(function (p) { return partDisplayName(g.cat, p); });
-        var shown = names.slice(0, 3);
-        var nameStr = shown.length === 1 ? shown[0] : shown.slice(0, -1).join(', ') + ' and ' + shown[shown.length - 1];
-        if (names.length > 3) nameStr += ' (+' + (names.length - 3) + ' more)';
-        var verb = gap.length === 1 ? 'is' : 'are';
-        var haveClause = gap.length === 1 ? 'you don’t have it' : (gap.length === 2 ? 'you have neither' : 'you have none of them');
-        var singular = SINGULAR_LABEL[g.cat];
-        var summary = 'You own ' + ownedCount + ' ' + type + ' ' + (ownedCount === 1 ? singular : singular + 's') +
-          '; ' + nameStr + ' ' + verb + ' top tier and ' + haveClause + '.';
-        sections.push({ cat: g.cat, type: type, label: g.label, summary: summary, parts: gap });
-      });
-    });
+    function gapScore(list, owned) {
+      var dist = typeDistribution(owned.length ? owned : []);
+      var maxCount = Math.max(1, dist.Attack, dist.Defense, dist.Stamina, dist.Balance);
+      return function (p) { return maxCount - (dist[p.type] || 0); };
+    }
+    var bladeGap = gapScore(STANDARD_BLADES, ownedBlades);
+    var ratchetGap = gapScore(RATCHETS, ownedRatchets);
+    var bitGap = gapScore(BITS, ownedBits);
+    function popularity(p) { return Math.min(6, (p.includedIn || []).length); }
+    var TIER_RANK = { S: 2, A: 1 };
 
-    if (!sections.length) {
-      var anyTiered = groups.some(function (g) { return g.list.some(function (p) { return !!p.metaTier; }); });
-      container.innerHTML = '<div class="empty-state">' + (anyTiered
-        ? 'No gaps right now — you own every S/A-tier part that’s been synced.'
-        : 'No meta tier data yet — sync against your community tier list (e.g. bbxhub.net) by adding metaTier to parts in the data files, then this view fills in.') + '</div>';
-      return;
+    function candidateFor(cat, p, gapFn, reasonSuffix) {
+      var tierRank = TIER_RANK[p.metaTier] || 0;
+      var reason = tierRank
+        ? 'Community tier ' + p.metaTier + (p.metaUpdated ? ' · as of ' + p.metaUpdated : '')
+        : 'Fills a ' + p.type + ' gap' + reasonSuffix;
+      return { cat: cat, p: p, tierRank: tierRank, gapScore: gapFn(p) * 10 + popularity(p) * 2, reason: reason };
     }
 
-    container.innerHTML = sections.map(function (s) {
-      return '<div class="meta-gap-section">' +
-        '<div class="meta-gap-title">' + escapeHtml(s.type) + ' ' + escapeHtml(s.label) + '</div>' +
-        '<p class="hint">' + escapeHtml(s.summary) + '</p>' +
-        s.parts.map(function (p) {
-          return '<div class="suggested-part-row" data-cat="' + s.cat + '" data-id="' + escapeAttr(p.id) + '">' +
-            '<img src="' + partImg(p) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
-            '<div><div class="name">' + escapeHtml(partDisplayName(s.cat, p)) + ' ' + metaTierBadgeHTML(s.cat, p.id) + '</div>' +
-            (p.metaUpdated ? '<div class="reason">Tier as of ' + escapeHtml(p.metaUpdated) + '</div>' : '') + '</div>' +
-            '</div>';
-        }).join('') +
-      '</div>';
-    }).join('');
+    var missingBlades = STANDARD_BLADES.concat(CX_LOCKCHIPS, CX_MAINBLADES, CX_ASSISTBLADES)
+      .filter(function (b) { return !isOwned('blades', b.id) && (TIER_RANK[b.metaTier] || typeof b.weight === 'number'); })
+      .map(function (b) { return candidateFor('blades', b, bladeGap, ' in your blades'); });
+    var missingRatchets = RATCHETS.filter(function (r) { return !isOwned('ratchets', r.id); })
+      .map(function (r) { return candidateFor('ratchets', r, ratchetGap, ' · used in ' + (r.includedIn || []).length + ' sets'); });
+    var missingBits = BITS.filter(function (b) { return !isOwned('bits', b.id); })
+      .map(function (b) { return candidateFor('bits', b, bitGap, ' · used in ' + (b.includedIn || []).length + ' sets'); });
 
+    var all = missingBlades.concat(missingRatchets, missingBits);
+    all.sort(function (a, b) { return a.tierRank !== b.tierRank ? b.tierRank - a.tierRank : b.gapScore - a.gapScore; });
+    var top = all.slice(0, 10);
+    if (!top.length) {
+      container.innerHTML = '<div class="empty-state">You own everything tracked here, or the database is empty.</div>';
+      return;
+    }
+    container.innerHTML = top.map(function (item) {
+      var name = partDisplayName(item.cat, item.p);
+      return '<div class="suggested-part-row" data-cat="' + item.cat + '" data-id="' + escapeAttr(item.p.id) + '">' +
+        '<img src="' + partImg(item.p) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
+        '<div><div class="name">' + escapeHtml(name) + ' ' + metaTierBadgeHTML(item.cat, item.p.id) + (item.p.type ? ' <span class="type-badge type-' + item.p.type + '">' + item.p.type + '</span>' : '') + '</div>' +
+        '<div class="reason">' + escapeHtml(item.reason) + '</div></div>' +
+        '</div>';
+    }).join('');
     container.querySelectorAll('.suggested-part-row').forEach(function (row) {
       row.addEventListener('click', function () { openPartModal(row.dataset.cat, row.dataset.id); });
     });
@@ -1933,9 +1932,30 @@
       '</button>';
   }
 
+  // A named opponent combo is auto-saved to store.opponentProfiles (upsert
+  // by name — a rival's profile should reflect their current setup, not a
+  // stale one) so next time they're one tap away instead of re-typed.
+  function fillOppPicker(entry) {
+    if (entry.isCX) {
+      if (entry.lock) document.getElementById('oppLock').value = entry.lock;
+      if (entry.main) document.getElementById('oppMain').value = entry.main;
+      if (entry.assist) document.getElementById('oppAssist').value = entry.assist;
+    } else if (entry.blade) {
+      document.getElementById('oppBlade').value = entry.blade;
+    }
+    if (entry.ratchet) document.getElementById('oppRatchet').value = entry.ratchet;
+    if (entry.bit) document.getElementById('oppBit').value = entry.bit;
+  }
+
   function opponentPickerHTML() {
     if (!battleEntryState.opponentPickerOpen) return '';
+    var savedHTML = store.opponentProfiles.length
+      ? '<div class="picker-group"><label>Saved opponents</label><select id="oppSavedPick"><option value="">— or pick a saved opponent —</option>' +
+        store.opponentProfiles.map(function (p, i) { return '<option value="' + i + '">' + escapeHtml(p.name) + '</option>'; }).join('') +
+        '</select></div><button class="btn-secondary" id="oppForgetBtn" style="display:none">Forget this saved opponent</button>'
+      : '';
     return '<div class="combo-picker opponent-picker">' +
+      savedHTML +
       '<label class="owned-toggle standalone"><input type="checkbox" id="oppCXToggle"> CX combo (Lock/Main/Assist)</label>' +
       '<div class="picker-group" id="oppStdGroup"><label>Blade</label><select id="oppBlade">' + optionsHTML(STANDARD_BLADES, 'blades', false) + '</select></div>' +
       '<div class="picker-group cx-only" id="oppCXGroup" style="display:none">' +
@@ -1961,6 +1981,29 @@
       document.getElementById('oppStdGroup').style.display = oppCX.checked ? 'none' : '';
       document.getElementById('oppCXGroup').style.display = oppCX.checked ? '' : 'none';
     });
+    var savedPick = document.getElementById('oppSavedPick');
+    if (savedPick) {
+      savedPick.addEventListener('change', function () {
+        var forgetBtn = document.getElementById('oppForgetBtn');
+        if (savedPick.value === '') { forgetBtn.style.display = 'none'; return; }
+        var profile = store.opponentProfiles[Number(savedPick.value)];
+        if (!profile) return;
+        oppCX.checked = !!profile.entry.isCX;
+        document.getElementById('oppStdGroup').style.display = oppCX.checked ? 'none' : '';
+        document.getElementById('oppCXGroup').style.display = oppCX.checked ? '' : 'none';
+        fillOppPicker(profile.entry);
+        document.getElementById('oppName').value = profile.name;
+        forgetBtn.style.display = '';
+      });
+      var forgetBtn = document.getElementById('oppForgetBtn');
+      forgetBtn.addEventListener('click', function () {
+        var idx = Number(savedPick.value);
+        if (isNaN(idx)) return;
+        store.opponentProfiles.splice(idx, 1);
+        saveStore();
+        renderBattleEntry();
+      });
+    }
     document.getElementById('oppCancelBtn').addEventListener('click', function () {
       battleEntryState.opponentPickerOpen = false;
       renderBattleEntry();
@@ -1984,6 +2027,13 @@
       var name = document.getElementById('oppName').value.trim();
       if (name) entry.name = name;
       entry.isOpponent = true;
+      if (name) {
+        var existingIdx = store.opponentProfiles.findIndex(function (p) { return p.name === name; });
+        var profile = { name: name, entry: entry };
+        if (existingIdx !== -1) store.opponentProfiles[existingIdx] = profile;
+        else store.opponentProfiles.push(profile);
+        saveStore();
+      }
       var slot = { isOpponent: true, entry: entry };
       if (battleEntryState.a == null) battleEntryState.a = slot;
       else if (battleEntryState.b == null) battleEntryState.b = slot;
@@ -2202,58 +2252,59 @@
     container.innerHTML = rows.map(function (r) {
       var part = byId[r.cat] && byId[r.cat][r.id];
       var name = part ? (r.cat === 'ratchets' ? part.id : (part.name || part.id)) : r.id;
-      return '<div class="winrate-row"><span class="wr-name">' + escapeHtml(name) + '</span><span class="wr-record">' + r.wins + 'W-' + r.losses + 'L · ' + r.pct + '%</span></div>';
+      return '<div class="winrate-row" data-part-cat="' + r.cat + '" data-part-id="' + escapeAttr(r.id) + '"><span class="wr-name">' + escapeHtml(name) + '</span><span class="wr-record">' + r.wins + 'W-' + r.losses + 'L · ' + r.pct + '%</span></div>';
     }).join('');
+    container.querySelectorAll('.winrate-row').forEach(function (row) {
+      row.addEventListener('click', function () { openPartBattlesModal(row.dataset.partCat, row.dataset.partId); });
+    });
   }
 
-  function renderSuggestedParts() {
-    var container = document.getElementById('suggestedParts');
-    var ownedBlades = ownedList('blades', STANDARD_BLADES);
-    var ownedRatchets = ownedList('ratchets', RATCHETS);
-    var ownedBits = ownedList('bits', BITS);
+  // Whether a single part (not a whole combo) appeared in a given combo
+  // snapshot — mirrors comboBladeIdsLocal/.ratchet/.bit matching already
+  // used by partBattleTally, just keyed on one part instead of tallying all.
+  function partAppearsIn(cat, id, combo) {
+    if (cat === 'blades') return comboBladeIdsLocal(combo).indexOf(id) !== -1;
+    if (cat === 'ratchets') return combo.ratchet === id;
+    return combo.bit === id;
+  }
 
-    function gapScore(list, owned) {
-      var dist = typeDistribution(owned.length ? owned : []);
-      var maxCount = Math.max(1, dist.Attack, dist.Defense, dist.Stamina, dist.Balance);
-      return function (p) {
-        var count = dist[p.type] || 0;
-        return (maxCount - count);
-      };
-    }
-
-    var bladeGap = gapScore(STANDARD_BLADES, ownedBlades);
-    var ratchetGap = gapScore(RATCHETS, ownedRatchets);
-    var bitGap = gapScore(BITS, ownedBits);
-
-    function popularity(p) { return Math.min(6, (p.includedIn || []).length); }
-
-    var missingBlades = STANDARD_BLADES.filter(function (b) { return !isOwned('blades', b.id) && typeof b.weight === 'number'; })
-      .map(function (b) { return { cat: 'blades', p: b, score: bladeGap(b) * 10 + popularity(b) * 2, reason: 'Fills a ' + b.type + ' gap in your blades' }; });
-    var missingRatchets = RATCHETS.filter(function (r) { return !isOwned('ratchets', r.id); })
-      .map(function (r) { return { cat: 'ratchets', p: r, score: ratchetGap(r) * 10 + popularity(r) * 2, reason: 'Fills a ' + r.type + ' gap · used in ' + (r.includedIn || []).length + ' sets' }; });
-    var missingBits = BITS.filter(function (b) { return !isOwned('bits', b.id); })
-      .map(function (b) { return { cat: 'bits', p: b, score: bitGap(b) * 10 + popularity(b) * 2, reason: 'Fills a ' + b.type + ' gap · used in ' + (b.includedIn || []).length + ' sets' }; });
-
-    var all = missingBlades.concat(missingRatchets, missingBits);
-    all.sort(function (a, b) { return b.score - a.score; });
-    var top = all.slice(0, 10);
-    if (!top.length) {
-      container.innerHTML = '<div class="empty-state">You own everything tracked here, or the database is empty.</div>';
-      return;
-    }
-    container.innerHTML = top.map(function (item) {
-      var name = partDisplayName(item.cat, item.p);
-      return '<div class="suggested-part-row" data-cat="' + item.cat + '" data-id="' + escapeAttr(item.p.id) + '">' +
-        '<img src="' + partImg(item.p) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
-        '<div><div class="name">' + escapeHtml(name) + (item.p.type ? ' <span class="type-badge type-' + item.p.type + '">' + item.p.type + '</span>' : '') + '</div>' +
-        '<div class="reason">' + escapeHtml(item.reason) + '</div></div>' +
-        '</div>';
-    }).join('');
-    container.querySelectorAll('.suggested-part-row').forEach(function (row) {
-      row.addEventListener('click', function () {
-        openPartModal(row.dataset.cat, row.dataset.id);
-      });
+  function battlesForPart(cat, id) {
+    var rows = [];
+    store.battles.forEach(function (b) {
+      var winnerCombo = b.winner === 'A' ? b.comboA : b.comboB;
+      var loserCombo = b.winner === 'A' ? b.comboB : b.comboA;
+      if (partAppearsIn(cat, id, winnerCombo)) rows.push({ battle: b, won: true, opponent: loserCombo });
+      if (partAppearsIn(cat, id, loserCombo)) rows.push({ battle: b, won: false, opponent: winnerCombo });
     });
+    rows.reverse();
+    return rows;
+  }
+
+  function openPartBattlesModal(cat, id) {
+    var part = byId[cat] && byId[cat][id];
+    var name = part ? partDisplayName(cat, part) : id;
+    var rec = partBattleRecord(cat, id);
+    var rows = battlesForPart(cat, id);
+    var recHTML = rec.total
+      ? '<div class="combo-wl-summary"><span class="wl-win">' + rec.wins + 'W</span><span class="wl-loss">' + rec.losses + 'L</span><span class="wl-pct">' + rec.pct + '% win rate</span></div>'
+      : '<div class="empty-state">No battles logged yet.</div>';
+    var logHTML = rows.map(function (row) {
+      var b = row.battle;
+      var oppLabel = (row.opponent.isOpponent ? 'Opp: ' : '') + (row.opponent.name || comboLabel(row.opponent));
+      var pts = { spinout: 1, burst: 2, xtreme: 3 }[b.finish];
+      var when = new Date(b.date).toLocaleDateString();
+      return '<div class="battle-log-row"><div class="blr-top"><span>' + (row.won ? 'Won vs ' : 'Lost to ') + escapeHtml(oppLabel) + '</span>' +
+        '<span class="' + (row.won ? 'wl-win' : 'wl-loss') + '">' + (row.won ? '+' : '−') + pts + ' pt</span></div>' +
+        '<div class="blr-meta">' + capitalize(b.finish) + ' · ' + when + '</div></div>';
+    }).join('');
+    document.getElementById('modalContent').innerHTML =
+      '<div class="modal-content">' +
+      '<h2 style="margin:0 0 10px">' + escapeHtml(name) + '</h2>' +
+      '<div class="tuning-block-title">Battle record</div>' +
+      recHTML +
+      (rows.length ? '<div class="tuning-block-title" style="margin-top:14px">Battle log (' + rows.length + ')</div><div class="combo-detail-battles">' + logHTML + '</div>' : '') +
+      '</div>';
+    modal.classList.add('open');
   }
 
   // ---------------- init ----------------
@@ -2265,7 +2316,6 @@
   renderSavedDecks();
   renderRoleBoard();
   renderTuningPanel();
-  renderSuggestedParts();
   renderBattleEntry();
   renderBattleLog();
   renderBattleStats();
