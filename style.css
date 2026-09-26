@@ -1024,7 +1024,12 @@ body {
   cursor: pointer;
 }
 
-.modal-content img {
+/* Direct child only — the one big hero image at the top of a part/combo
+   detail modal. A plain descendant selector here would also catch every
+   small thumbnail nested deeper inside modal content (suggested-part-row,
+   deck-build-row, etc.) and win the cascade on width via source order,
+   stretching them — see Build 7.12. */
+.modal-content > img {
   width: 100%;
   max-width: 200px;
   display: block;
