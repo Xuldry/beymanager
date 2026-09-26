@@ -16,6 +16,25 @@
 
 * { box-sizing: border-box; }
 
+/* Dark-theme default for every plain text-like input in the app — without
+   this, any input that doesn't have its own scoped rule falls back to the
+   browser's white default (e.g. the opponent-name field, "Add a part I own").
+   Specific rules elsewhere (e.g. #searchInput) still override this fine. */
+input[type="text"], input[type="number"], input[type="search"], textarea {
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 9px 10px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  width: 100%;
+}
+
+input[type="text"]::placeholder, input[type="number"]::placeholder, textarea::placeholder {
+  color: var(--text-dim);
+}
+
 body {
   margin: 0;
   background: var(--bg);
