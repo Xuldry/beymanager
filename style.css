@@ -122,6 +122,8 @@ body {
   cursor: pointer;
 }
 
+.buy-next-filters { margin-top: 4px; flex-wrap: wrap; }
+
 .subtab-btn.active {
   color: var(--text);
   border-color: var(--accent);

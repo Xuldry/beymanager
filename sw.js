@@ -2,12 +2,13 @@
 // Bump CACHE_NAME whenever ANY app asset changes (html/css/js/data/media) —
 // the browser only re-runs install() when this file's bytes change, so a
 // same-named cache means edits silently keep serving stale content forever.
-const CACHE_NAME = 'beymanager-build6.10';
+const CACHE_NAME = 'beymanager-build6.20';
 const PRECACHE_URLS = [
   "./",
   "app.js",
   "data/bits.js",
   "data/blades.js",
+  "data/meta.js",
   "data/ratchets.js",
   "index.html",
   "manifest.json",

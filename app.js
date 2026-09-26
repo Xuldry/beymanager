@@ -31,6 +31,67 @@
     window.BeyScoring.init(store);
     window.BeyScoring.shapeAllParts(BLADES, RATCHETS, BITS);
     BOOTSTRAP_CACHE = window.BeyScoring.buildBootstrapCache(BLADES, RATCHETS, BITS);
+    applyMetaData();
+  }
+
+  // Resolves data/meta.js's weekly bbxhub.net snapshot (rank/score/trend per
+  // part, matched by name) onto the matching part objects as
+  // metaTier/metaRank/metaScore/metaTrend/metaNote/metaUpdated. Re-derived
+  // every rebuildDerived() call, never hand-edited into the part data files —
+  // replace data/meta.js wholesale with a fresh export to update. A part not
+  // in this week's report simply has no meta fields, same as before any
+  // snapshot existed.
+  function metaTrendPhrase(trend) {
+    if (trend == null) return '';
+    if (trend === 'new') return 'new this week';
+    var n = parseInt(trend, 10);
+    if (isNaN(n) || n === 0) return 'steady';
+    return n > 0 ? 'up ' + n : 'down ' + Math.abs(n);
+  }
+
+  function metaTierForRank(rank) {
+    return rank <= 3 ? 'S' : rank <= 7 ? 'A' : 'B';
+  }
+
+  function applyMetaData() {
+    var meta = window.META_DATA;
+    if (!meta) return;
+    var updated = meta.metaUpdated;
+
+    function applyRanked(part, row) {
+      if (!part) return;
+      part.metaTier = metaTierForRank(row.rank);
+      part.metaRank = row.rank;
+      part.metaScore = row.score;
+      part.metaTrend = row.trend;
+      part.metaUpdated = updated;
+      part.metaNote = 'Rank #' + row.rank + ' this week (' + row.score + ' uses) · ' + metaTrendPhrase(row.trend);
+    }
+
+    (meta.blades || []).forEach(function (row) {
+      applyRanked(BLADES.find(function (b) { return squash(b.name) === squash(row.name); }), row);
+    });
+    (meta.ratchets || []).forEach(function (row) {
+      applyRanked(byId.ratchets[row.name], row);
+    });
+    (meta.bits || []).forEach(function (row) {
+      applyRanked(byId.bits[row.code] || BITS.find(function (b) { return squash(b.name) === squash(row.name); }), row);
+    });
+
+    // CX parts here carry no rank/score, just "seen in this week's top
+    // builds" — a flat signal, not a ranked one. Names with no match in our
+    // database yet (a part we haven't scraped in) are silently skipped
+    // rather than guessed at.
+    if (meta.cx) {
+      var cxNames = [].concat(meta.cx.lockChips || [], meta.cx.overBlades || [], meta.cx.assistBlades || []);
+      cxNames.forEach(function (name) {
+        var blade = BLADES.find(function (b) { return b.isCX && squash(b.name) === squash(name); });
+        if (!blade) return;
+        blade.metaTier = blade.metaTier || 'A';
+        blade.metaUpdated = updated;
+        blade.metaNote = 'Seen in this week’s top CX builds';
+      });
+    }
   }
 
   // Reconstructs "as sold" Blade+Ratchet+Bit (or, for CX, LockChip+MainBlade+
@@ -1554,13 +1615,14 @@
     return out;
   }
 
-  // Community tier badge (manually synced by the user against a tier list,
-  // e.g. bbxhub.net — never scraped/fetched by the app, and absent entirely
-  // until the user adds metaTier to a part's data entry by hand).
+  // Community tier badge — derived at load time from data/meta.js's weekly
+  // bbxhub.net snapshot (applyMetaData), never hand-typed. Absent entirely
+  // for any part not in that week's report.
   function metaTierBadgeHTML(cat, id) {
     var part = byId[cat] && byId[cat][id];
     if (!part || !part.metaTier) return '';
-    var title = 'Community tier ' + part.metaTier + (part.metaUpdated ? ' (as of ' + part.metaUpdated + ')' : '') + (part.metaNote ? ': ' + part.metaNote : '');
+    var title = part.metaNote || ('Community tier ' + part.metaTier);
+    if (part.metaUpdated) title += ' (synced ' + part.metaUpdated + ')';
     return '<span class="meta-tier-badge tier-' + escapeAttr(part.metaTier) + '" title="' + escapeAttr(title) + '">' + escapeHtml(part.metaTier) + '</span>';
   }
 
@@ -1667,17 +1729,27 @@
     });
   }
 
-  // The single "what should I buy next" view — merges what used to be two
-  // separate, uncoordinated features: a manually-synced community tier gap
-  // (top-tier parts you don't own — real data, when it exists) and a
-  // type-diversity/set-popularity heuristic (a guess, for everything else).
-  // Same precedent as battle-record-vs-estimate: real data always outranks
-  // the heuristic, and every row says which basis it used.
-  function renderBuyNextView(container) {
+  // The "what should I buy next" view. Four filters: Attack/Defense/Stamina
+  // rank unowned parts of that type (real weekly meta data outranking the
+  // type-diversity/set-popularity heuristic, same precedent as
+  // battle-record-vs-estimate), and Meta ranks unowned parts purely by this
+  // week's real usage data (data/meta.js), regardless of role.
+  var BUY_NEXT_FILTERS = ['Attack', 'Defense', 'Stamina', 'Meta'];
+  var buyNextFilter = 'Meta';
+
+  function suggestedRowHTML(item) {
+    var name = partDisplayName(item.cat, item.p);
+    return '<div class="suggested-part-row" data-cat="' + item.cat + '" data-id="' + escapeAttr(item.p.id) + '">' +
+      '<img src="' + partImg(item.p) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
+      '<div><div class="name">' + escapeHtml(name) + ' ' + metaTierBadgeHTML(item.cat, item.p.id) + (item.p.type ? ' <span class="type-badge type-' + item.p.type + '">' + item.p.type + '</span>' : '') + '</div>' +
+      '<div class="reason">' + escapeHtml(item.reason) + '</div></div>' +
+      '</div>';
+  }
+
+  function buyNextRoleItems(role) {
     var ownedBlades = ownedList('blades', STANDARD_BLADES);
     var ownedRatchets = ownedList('ratchets', RATCHETS);
     var ownedBits = ownedList('bits', BITS);
-
     function gapScore(list, owned) {
       var dist = typeDistribution(owned.length ? owned : []);
       var maxCount = Math.max(1, dist.Attack, dist.Defense, dist.Stamina, dist.Balance);
@@ -1691,35 +1763,61 @@
 
     function candidateFor(cat, p, gapFn, reasonSuffix) {
       var tierRank = TIER_RANK[p.metaTier] || 0;
-      var reason = tierRank
-        ? 'Community tier ' + p.metaTier + (p.metaUpdated ? ' · as of ' + p.metaUpdated : '')
-        : 'Fills a ' + p.type + ' gap' + reasonSuffix;
+      var reason = tierRank ? (p.metaNote || ('Community tier ' + p.metaTier)) : 'Fills a ' + p.type + ' gap' + reasonSuffix;
       return { cat: cat, p: p, tierRank: tierRank, gapScore: gapFn(p) * 10 + popularity(p) * 2, reason: reason };
     }
 
     var missingBlades = STANDARD_BLADES.concat(CX_LOCKCHIPS, CX_MAINBLADES, CX_ASSISTBLADES)
-      .filter(function (b) { return !isOwned('blades', b.id) && (TIER_RANK[b.metaTier] || typeof b.weight === 'number'); })
+      .filter(function (b) { return !isOwned('blades', b.id) && b.type === role && (TIER_RANK[b.metaTier] || typeof b.weight === 'number'); })
       .map(function (b) { return candidateFor('blades', b, bladeGap, ' in your blades'); });
-    var missingRatchets = RATCHETS.filter(function (r) { return !isOwned('ratchets', r.id); })
+    var missingRatchets = RATCHETS.filter(function (r) { return !isOwned('ratchets', r.id) && r.type === role; })
       .map(function (r) { return candidateFor('ratchets', r, ratchetGap, ' · used in ' + (r.includedIn || []).length + ' sets'); });
-    var missingBits = BITS.filter(function (b) { return !isOwned('bits', b.id); })
+    var missingBits = BITS.filter(function (b) { return !isOwned('bits', b.id) && b.type === role; })
       .map(function (b) { return candidateFor('bits', b, bitGap, ' · used in ' + (b.includedIn || []).length + ' sets'); });
 
     var all = missingBlades.concat(missingRatchets, missingBits);
     all.sort(function (a, b) { return a.tierRank !== b.tierRank ? b.tierRank - a.tierRank : b.gapScore - a.gapScore; });
-    var top = all.slice(0, 10);
-    if (!top.length) {
-      container.innerHTML = '<div class="empty-state">You own everything tracked here, or the database is empty.</div>';
-      return;
+    return all.slice(0, 10);
+  }
+
+  function buyNextMetaItems() {
+    var rows = [];
+    ['blades', 'ratchets', 'bits'].forEach(function (cat) {
+      var list = cat === 'blades' ? BLADES : cat === 'ratchets' ? RATCHETS : BITS;
+      list.forEach(function (p) {
+        if (p.metaRank != null && !isOwned(cat, p.id)) rows.push({ cat: cat, p: p, reason: p.metaNote || '' });
+      });
+    });
+    rows.sort(function (a, b) { return a.p.metaRank - b.p.metaRank; });
+    var cxRows = BLADES.filter(function (b) { return b.isCX && b.metaTier && b.metaRank == null && !isOwned('blades', b.id); })
+      .map(function (b) { return { cat: 'blades', p: b, reason: b.metaNote || '' }; });
+    return rows.concat(cxRows).slice(0, 15);
+  }
+
+  function renderBuyNextView(container) {
+    var pillsHTML = '<div class="subtabs buy-next-filters">' + BUY_NEXT_FILTERS.map(function (f) {
+      return '<button class="subtab-btn' + (buyNextFilter === f ? ' active' : '') + '" data-buyfilter="' + f + '">' + f + '</button>';
+    }).join('') + '</div>';
+
+    var items, emptyMsg, headerHTML = '';
+    if (buyNextFilter === 'Meta') {
+      items = buyNextMetaItems();
+      emptyMsg = 'You already own every part in this week’s meta report, or no meta data has synced yet.';
+      if (window.META_DATA) {
+        headerHTML = '<p class="hint">From ' + window.META_DATA.metaSample.events + ' events / ' + window.META_DATA.metaSample.combos +
+          ' combos · week of ' + escapeHtml(window.META_DATA.metaWindow) + ' · synced ' + escapeHtml(window.META_DATA.metaUpdated) + '.</p>';
+      }
+    } else {
+      items = buyNextRoleItems(buyNextFilter);
+      emptyMsg = 'You own everything tracked here for ' + buyNextFilter + ', or the database is empty.';
     }
-    container.innerHTML = top.map(function (item) {
-      var name = partDisplayName(item.cat, item.p);
-      return '<div class="suggested-part-row" data-cat="' + item.cat + '" data-id="' + escapeAttr(item.p.id) + '">' +
-        '<img src="' + partImg(item.p) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
-        '<div><div class="name">' + escapeHtml(name) + ' ' + metaTierBadgeHTML(item.cat, item.p.id) + (item.p.type ? ' <span class="type-badge type-' + item.p.type + '">' + item.p.type + '</span>' : '') + '</div>' +
-        '<div class="reason">' + escapeHtml(item.reason) + '</div></div>' +
-        '</div>';
-    }).join('');
+
+    var listHTML = items.length ? items.map(suggestedRowHTML).join('') : '<div class="empty-state">' + emptyMsg + '</div>';
+    container.innerHTML = pillsHTML + headerHTML + listHTML;
+
+    container.querySelectorAll('[data-buyfilter]').forEach(function (btn) {
+      btn.addEventListener('click', function () { buyNextFilter = btn.dataset.buyfilter; renderBuyNextView(container); });
+    });
     container.querySelectorAll('.suggested-part-row').forEach(function (row) {
       row.addEventListener('click', function () { openPartModal(row.dataset.cat, row.dataset.id); });
     });
