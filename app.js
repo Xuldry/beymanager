@@ -979,11 +979,23 @@
   }
 
   // ---------------- saved combos: filter + sort ----------------
-  var savedCombosState = { blade: '', ratchet: '', bit: '', sort: 'total_desc', deckMode: false, deckSelection: [], deckFlash: '', deckSaveOpen: false };
+  var savedCombosState = {
+    blade: '', ratchet: '', bit: '', sort: 'total_desc',
+    deckMode: false, deckSelection: [], deckFlash: '', deckSaveOpen: false,
+    selectMode: false, bulkSelection: [], bulkDeleteConfirming: false
+  };
 
   document.getElementById('btnDeckMode').addEventListener('click', function () {
     savedCombosState.deckMode = !savedCombosState.deckMode;
     if (!savedCombosState.deckMode) { savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false; savedCombosState.deckFlash = ''; }
+    else { savedCombosState.selectMode = false; savedCombosState.bulkSelection = []; savedCombosState.bulkDeleteConfirming = false; }
+    renderSavedCombos();
+  });
+
+  document.getElementById('btnSelectCombos').addEventListener('click', function () {
+    savedCombosState.selectMode = !savedCombosState.selectMode;
+    if (!savedCombosState.selectMode) { savedCombosState.bulkSelection = []; savedCombosState.bulkDeleteConfirming = false; }
+    else { savedCombosState.deckMode = false; savedCombosState.deckSelection = []; savedCombosState.deckSaveOpen = false; savedCombosState.deckFlash = ''; }
     renderSavedCombos();
   });
 
@@ -1073,6 +1085,9 @@
     var deckBtn = document.getElementById('btnDeckMode');
     deckBtn.textContent = savedCombosState.deckMode ? 'Cancel deck mode' : 'Build a deck';
     deckBtn.classList.toggle('active', savedCombosState.deckMode);
+    var selectBtn = document.getElementById('btnSelectCombos');
+    selectBtn.textContent = savedCombosState.selectMode ? 'Cancel select' : 'Select';
+    selectBtn.classList.toggle('active', savedCombosState.selectMode);
     var container = document.getElementById('savedCombos');
     if (!store.combos.length) {
       container.innerHTML = '<div class="empty-state">No saved combos yet. Build one above and hit "Save this combo".</div>';
@@ -1115,8 +1130,11 @@
       var selPos = savedCombosState.deckSelection.indexOf(row.idx);
       var deckCls = savedCombosState.deckMode ? (selPos !== -1 ? ' deck-selected' : ' deck-selectable') : '';
       var deckCheck = savedCombosState.deckMode ? '<div class="deck-check">' + (selPos !== -1 ? (selPos + 1) : '') + '</div>' : '';
-      return '<div class="combo-chip-v2' + deckCls + '" data-idx="' + row.idx + '">' +
-        deckCheck +
+      var bulkSelected = savedCombosState.bulkSelection.indexOf(row.idx) !== -1;
+      var bulkCls = savedCombosState.selectMode ? (bulkSelected ? ' bulk-selected bulk-selectable' : ' bulk-selectable') : '';
+      var bulkCheck = savedCombosState.selectMode ? '<div class="bulk-check">' + (bulkSelected ? '✓' : '') + '</div>' : '';
+      return '<div class="combo-chip-v2' + deckCls + bulkCls + '" data-idx="' + row.idx + '">' +
+        deckCheck + bulkCheck +
         '<div class="cc-row">' +
           '<img class="cc-thumb" src="' + comboRepresentativeImage(row.entry) + '" alt="" loading="lazy" onerror="this.style.opacity=0.2">' +
           '<div class="cc-body">' +
@@ -1179,17 +1197,64 @@
           renderSavedCombos();
           return;
         }
+        if (savedCombosState.selectMode) {
+          var bpos = savedCombosState.bulkSelection.indexOf(idx);
+          if (bpos !== -1) savedCombosState.bulkSelection.splice(bpos, 1);
+          else savedCombosState.bulkSelection.push(idx);
+          savedCombosState.bulkDeleteConfirming = false;
+          renderSavedCombos();
+          return;
+        }
         openComboModal(idx);
       });
     });
     renderDeckStickyBar();
   }
 
-  // ---------------- deck builder: sticky bar + saved decks ----------------
+  // ---------------- deck builder + bulk select: sticky bar + saved decks ----------------
   function renderDeckStickyBar() {
     var bar = document.getElementById('deckStickyBar');
-    var sel = savedCombosState.deckSelection;
     var panel = document.getElementById('panel-mybeys');
+
+    if (savedCombosState.selectMode) {
+      var bsel = savedCombosState.bulkSelection;
+      if (!bsel.length) {
+        bar.classList.remove('open'); bar.innerHTML = ''; panel.classList.remove('deck-bar-open');
+        return;
+      }
+      panel.classList.add('deck-bar-open');
+      bar.classList.add('open');
+      bar.innerHTML =
+        '<div class="deck-names">' + bsel.length + ' combo' + (bsel.length > 1 ? 's' : '') + ' selected</div>' +
+        '<div class="deck-bar-btns">' +
+          '<button class="btn-primary" id="bulkDeleteBtn" style="border-color:var(--attack);background:var(--attack)">' +
+            (savedCombosState.bulkDeleteConfirming ? 'Sure? Delete ' + bsel.length : 'Delete selected') +
+          '</button>' +
+          '<button class="btn-secondary" id="bulkCancelBtn">Cancel</button>' +
+        '</div>';
+      document.getElementById('bulkDeleteBtn').addEventListener('click', function () {
+        if (savedCombosState.bulkDeleteConfirming) {
+          bsel.slice().sort(function (a, b) { return b - a; }).forEach(function (idx) { store.combos.splice(idx, 1); });
+          saveStore();
+          savedCombosState.selectMode = false; savedCombosState.bulkSelection = []; savedCombosState.bulkDeleteConfirming = false;
+          renderSavedCombos();
+          return;
+        }
+        savedCombosState.bulkDeleteConfirming = true;
+        renderDeckStickyBar();
+        setTimeout(function () {
+          if (savedCombosState.bulkDeleteConfirming) { savedCombosState.bulkDeleteConfirming = false; renderDeckStickyBar(); }
+        }, 2500);
+      });
+      document.getElementById('bulkCancelBtn').addEventListener('click', function () {
+        savedCombosState.bulkSelection = [];
+        savedCombosState.bulkDeleteConfirming = false;
+        renderSavedCombos();
+      });
+      return;
+    }
+
+    var sel = savedCombosState.deckSelection;
     if (!savedCombosState.deckMode || (!sel.length && !savedCombosState.deckFlash)) {
       bar.classList.remove('open');
       bar.innerHTML = '';
@@ -1851,6 +1916,28 @@
   // ever battling *only* your own beys, so the opponent's side needs to be
   // loggable without first saving it as one of your own combos.
   var battleEntryState = { a: null, b: null, winner: null, finish: null, opponentPickerOpen: false };
+  var battleLogState = { selectMode: false, selection: [], bulkDeleteConfirming: false };
+
+  document.getElementById('btnSelectBattles').addEventListener('click', function () {
+    battleLogState.selectMode = !battleLogState.selectMode;
+    battleLogState.selection = [];
+    battleLogState.bulkDeleteConfirming = false;
+    renderBattleLog();
+  });
+
+  // Deleting a logged battle removes it from the log and from every derived
+  // tally (part win rates, combo win/loss on My Beys) since those are always
+  // recomputed live from store.battles — it does NOT retroactively undo the
+  // learned-stat nudge that battle already applied (learnedStats has no
+  // per-battle history to roll back), same limitation as editing/undoing any
+  // other already-applied learning update.
+  function deleteBattles(indices) {
+    indices.slice().sort(function (a, b) { return b - a; }).forEach(function (idx) { store.battles.splice(idx, 1); });
+    saveStore();
+    renderBattleLog();
+    renderBattleStats();
+    renderSavedCombos();
+  }
 
   function battleSlotEntry(slot) {
     if (slot == null) return null;
@@ -2041,18 +2128,102 @@
 
   function renderBattleLog() {
     var container = document.getElementById('battleLog');
-    if (!store.battles.length) { container.innerHTML = '<div class="empty-state">No battles logged yet.</div>'; return; }
-    var recent = store.battles.slice().reverse().slice(0, 20);
-    container.innerHTML = recent.map(function (b) {
+    var selectBtn = document.getElementById('btnSelectBattles');
+    selectBtn.textContent = battleLogState.selectMode ? 'Cancel select' : 'Select';
+    selectBtn.classList.toggle('active', battleLogState.selectMode);
+
+    if (!store.battles.length) {
+      container.innerHTML = '<div class="empty-state">No battles logged yet.</div>';
+      renderBattleSelectBar();
+      return;
+    }
+    // Original store.battles index is what deletion needs — recent is a
+    // reversed, truncated view, so carry the real index through the map.
+    var indexed = store.battles.map(function (b, i) { return { battle: b, idx: i }; });
+    var recent = indexed.slice().reverse().slice(0, 20);
+    container.innerHTML = recent.map(function (row) {
+      var b = row.battle;
       var winnerCombo = b.winner === 'A' ? b.comboA : b.comboB;
       var loserCombo = b.winner === 'A' ? b.comboB : b.comboA;
       var winnerLabel = (winnerCombo.isOpponent ? 'Opp: ' : '') + (winnerCombo.name || comboLabel(winnerCombo));
       var loserLabel = (loserCombo.isOpponent ? 'Opp: ' : '') + (loserCombo.name || comboLabel(loserCombo));
       var pts = { spinout: 1, burst: 2, xtreme: 3 }[b.finish];
       var when = new Date(b.date).toLocaleDateString();
-      return '<div class="battle-log-row"><div class="blr-top"><span>' + escapeHtml(winnerLabel) + ' beat ' + escapeHtml(loserLabel) + '</span><span>' + pts + ' pt</span></div>' +
+      var selected = battleLogState.selection.indexOf(row.idx) !== -1;
+      var bulkCls = battleLogState.selectMode ? (selected ? ' bulk-selected bulk-selectable' : ' bulk-selectable') : '';
+      var bulkCheck = battleLogState.selectMode ? '<div class="bulk-check">' + (selected ? '✓' : '') + '</div>' : '';
+      var delBtn = battleLogState.selectMode ? '' : '<button class="btn-del" data-battle-del="' + row.idx + '" title="Delete">&times;</button>';
+      return '<div class="battle-log-row' + bulkCls + '" data-battle-idx="' + row.idx + '">' +
+        bulkCheck +
+        '<div class="blr-top"><span>' + escapeHtml(winnerLabel) + ' beat ' + escapeHtml(loserLabel) + '</span><span>' + pts + ' pt ' + delBtn + '</span></div>' +
         '<div class="blr-meta">' + capitalize(b.finish) + ' · ' + when + (b.changedPart ? ' · isolated: ' + escapeHtml(b.changedPart.cat.slice(0, -1)) : '') + '</div></div>';
     }).join('');
+
+    container.querySelectorAll('[data-battle-del]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (btn.dataset.confirming === '1') { deleteBattles([Number(btn.dataset.battleDel)]); return; }
+        btn.dataset.confirming = '1';
+        btn.textContent = 'Sure?';
+        btn.classList.add('confirm-delete');
+        setTimeout(function () {
+          if (btn.dataset.confirming === '1') {
+            btn.dataset.confirming = '';
+            btn.textContent = '×';
+            btn.classList.remove('confirm-delete');
+          }
+        }, 2500);
+      });
+    });
+    container.querySelectorAll('.battle-log-row').forEach(function (row) {
+      row.addEventListener('click', function () {
+        if (!battleLogState.selectMode) return;
+        var idx = Number(row.dataset.battleIdx);
+        var pos = battleLogState.selection.indexOf(idx);
+        if (pos !== -1) battleLogState.selection.splice(pos, 1);
+        else battleLogState.selection.push(idx);
+        battleLogState.bulkDeleteConfirming = false;
+        renderBattleLog();
+      });
+    });
+    renderBattleSelectBar();
+  }
+
+  function renderBattleSelectBar() {
+    var bar = document.getElementById('battleSelectBar');
+    var sel = battleLogState.selection;
+    if (!battleLogState.selectMode || !sel.length) {
+      bar.classList.remove('open');
+      bar.innerHTML = '';
+      return;
+    }
+    bar.classList.add('open');
+    bar.innerHTML =
+      '<div class="deck-names">' + sel.length + ' battle' + (sel.length > 1 ? 's' : '') + ' selected</div>' +
+      '<div class="deck-bar-btns">' +
+        '<button class="btn-primary" id="battleBulkDeleteBtn" style="border-color:var(--attack);background:var(--attack)">' +
+          (battleLogState.bulkDeleteConfirming ? 'Sure? Delete ' + sel.length : 'Delete selected') +
+        '</button>' +
+        '<button class="btn-secondary" id="battleBulkCancelBtn">Cancel</button>' +
+      '</div>';
+    document.getElementById('battleBulkDeleteBtn').addEventListener('click', function () {
+      if (battleLogState.bulkDeleteConfirming) {
+        var toDelete = sel.slice();
+        battleLogState.selectMode = false; battleLogState.selection = []; battleLogState.bulkDeleteConfirming = false;
+        deleteBattles(toDelete);
+        return;
+      }
+      battleLogState.bulkDeleteConfirming = true;
+      renderBattleSelectBar();
+      setTimeout(function () {
+        if (battleLogState.bulkDeleteConfirming) { battleLogState.bulkDeleteConfirming = false; renderBattleSelectBar(); }
+      }, 2500);
+    });
+    document.getElementById('battleBulkCancelBtn').addEventListener('click', function () {
+      battleLogState.selection = [];
+      battleLogState.bulkDeleteConfirming = false;
+      renderBattleLog();
+    });
   }
 
   function renderBattleStats() {

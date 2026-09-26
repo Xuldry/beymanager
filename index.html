@@ -15,7 +15,7 @@
   <div class="brand">
     <span class="brand-icon">◈</span>
     <div>
-      <h1>BeyManager <span class="build-tag">Build 6</span></h1>
+      <h1>BeyManager <span class="build-tag">Build 6.01</span></h1>
       <p class="tagline">Your Beyblade collection, organized</p>
     </div>
   </div>
@@ -48,7 +48,10 @@
 
     <div class="section-title-row">
       <h3 class="section-title" style="margin:0">Saved Combos</h3>
-      <button class="btn-secondary" id="btnDeckMode" style="width:auto;min-height:36px;padding:6px 12px">Build a deck</button>
+      <div class="section-title-btns">
+        <button class="btn-secondary" id="btnDeckMode" style="width:auto;min-height:36px;padding:6px 12px">Build a deck</button>
+        <button class="btn-secondary" id="btnSelectCombos" style="width:auto;min-height:36px;padding:6px 12px">Select</button>
+      </div>
     </div>
     <div class="saved-combos-controls" id="savedCombosControls"></div>
     <div class="saved-combos" id="savedCombos"></div>
@@ -129,8 +132,12 @@
   <section class="tab-panel" id="panel-battles">
     <div id="battleEntry"></div>
 
-    <h3 class="section-title">Recent Battles</h3>
+    <div class="section-title-row">
+      <h3 class="section-title" style="margin:0">Recent Battles</h3>
+      <button class="btn-secondary" id="btnSelectBattles" style="width:auto;min-height:36px;padding:6px 12px">Select</button>
+    </div>
     <div id="battleLog"></div>
+    <div class="deck-sticky-bar" id="battleSelectBar"></div>
 
     <h3 class="section-title">Part Win Rates</h3>
     <p class="hint">Computed from your logged battles only.</p>

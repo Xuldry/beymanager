@@ -409,10 +409,18 @@ body {
 }
 .section-title-row .section-title { margin: 0; }
 
+.section-title-btns { display: flex; gap: 8px; flex-shrink: 0; }
+
 #btnDeckMode.active {
   background: var(--accent);
   color: white;
   border-color: var(--accent);
+}
+
+#btnSelectCombos.active, #btnSelectBattles.active {
+  background: var(--attack);
+  color: white;
+  border-color: var(--attack);
 }
 
 /* ---- deck builder: selection + sticky bar + saved decks ---- */
@@ -434,6 +442,33 @@ body {
   font-size: 12px;
   font-weight: 800;
 }
+
+/* ---- bulk select (delete) mode: combos and battle log rows ---- */
+.combo-chip-v2.bulk-selectable, .battle-log-row.bulk-selectable { cursor: pointer; }
+.combo-chip-v2.bulk-selected { border-color: var(--attack); box-shadow: 0 0 0 1px var(--attack) inset; }
+.battle-log-row.bulk-selected { border-color: var(--attack); box-shadow: 0 0 0 1px var(--attack) inset; }
+
+.bulk-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(0,0,0,0.4);
+  color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+.bulk-selected .bulk-check { background: var(--attack); border-color: var(--attack); color: white; }
+
+.battle-log-row { position: relative; }
+.battle-log-row .bulk-check { top: 10px; }
+.battle-log-row.bulk-selectable { padding-right: 40px; }
 
 .deck-sticky-bar {
   display: none;
@@ -593,13 +628,24 @@ body {
   flex-shrink: 0;
 }
 
-.cc-top .btn-del.confirm-delete {
+.cc-top .btn-del.confirm-delete,
+.blr-top .btn-del.confirm-delete {
   background: var(--attack);
   color: white;
   font-size: 11px;
   font-weight: 700;
   border-radius: 6px;
   padding: 4px 8px;
+}
+
+.blr-top .btn-del {
+  background: none;
+  border: none;
+  color: var(--attack);
+  cursor: pointer;
+  font-size: 15px;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 .combo-rename-input {
