@@ -80,11 +80,16 @@ body {
   background: none;
   border: none;
   color: var(--text-dim);
-  padding: 10px 8px;
+  padding: 10px 4px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   border-bottom: 3px solid transparent;
+  min-height: 44px;
+}
+
+@media (max-width: 420px) {
+  .tab-btn { font-size: 12px; padding: 10px 2px; }
 }
 
 .tab-btn.active {
@@ -806,4 +811,465 @@ body {
   font-size: 13px;
   padding: 20px;
   text-align: center;
+}
+
+/* ================= v2 recommendation engine ================= */
+
+/* ---- role board cards (expandable breakdown) ---- */
+.role-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.role-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.role-card-head .combo-parts {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.role-card-score {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.role-card-score .num {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.role-card-score .range {
+  font-size: 10px;
+  color: var(--text-dim);
+  display: block;
+}
+
+.role-card-caret {
+  color: var(--text-dim);
+  transition: transform .15s;
+  flex-shrink: 0;
+}
+
+.role-card.open .role-card-caret { transform: rotate(180deg); }
+
+.role-card-body {
+  display: none;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.role-card.open .role-card-body { display: block; padding-top: 10px; }
+
+.breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.breakdown-row .b-label { width: 70px; flex-shrink: 0; color: var(--text-dim); }
+.breakdown-row .b-track { flex: 1; height: 8px; background: var(--bg-elev-2); border-radius: 4px; overflow: hidden; }
+.breakdown-row .b-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+.breakdown-row .b-val { width: 60px; flex-shrink: 0; text-align: right; font-variant-numeric: tabular-nums; }
+
+.penalty-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(255,91,91,0.08);
+  border: 1px solid rgba(255,91,91,0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.penalty-row .p-name { font-weight: 700; color: var(--attack); }
+.penalty-row .p-reason { color: var(--text-dim); }
+.no-penalties { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+
+/* ---- provenance badges ---- */
+.prov-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1.5px solid currentColor;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: var(--bg);
+}
+
+.prov-measured { color: var(--stamina); }
+.prov-learned { color: var(--accent); }
+.prov-ranked { color: var(--defense); }
+.prov-default { color: var(--text-dim); }
+
+/* ---- bottom sheet ---- */
+.sheet-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 200;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet-backdrop.open { display: flex; }
+
+.bottom-sheet {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  width: 100%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 8px 18px 22px;
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 6px auto 14px;
+}
+
+/* ---- tuning panel ---- */
+.tuning-panel {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 14px 0;
+}
+
+.tuning-panel summary {
+  cursor: pointer;
+  padding: 14px;
+  font-weight: 600;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  list-style: none;
+}
+
+.tuning-panel summary::-webkit-details-marker { display: none; }
+.tuning-panel[open] summary { border-bottom: 1px solid var(--border); }
+
+#tuningContent { padding: 14px; display: flex; flex-direction: column; gap: 22px; }
+
+.tuning-block-title { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+
+/* ---- weight steppers ---- */
+.weight-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.weight-row .w-label { flex: 1; font-size: 13px; min-width: 0; }
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stepper button {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stepper .w-value {
+  width: 42px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.tuning-reset-btn {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+/* ---- ordinal list editor ---- */
+.ordinal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-elev-2);
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+}
+
+.ordinal-row .o-name { flex: 1; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ordinal-row .o-value { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; width: 34px; text-align: right; flex-shrink: 0; }
+
+.ordinal-btns { display: flex; gap: 4px; flex-shrink: 0; }
+
+.ordinal-btns button {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ordinal-add-row { display: flex; gap: 8px; margin-top: 8px; }
+.ordinal-add-row select { flex: 1; min-width: 0; }
+
+/* ---- legend ---- */
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+
+.legend-row .legend-desc { color: var(--text-dim); }
+
+/* ---- battle log: THE mobile-priority surface ---- */
+.battle-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 4px 0 10px;
+}
+
+.battle-combo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.battle-combo-card {
+  background: var(--bg-elev);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 10px;
+  text-align: left;
+  cursor: pointer;
+  min-height: 56px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.battle-combo-card.picked-a { border-color: var(--defense); background: rgba(77,158,255,0.12); }
+.battle-combo-card.picked-b { border-color: var(--attack); background: rgba(255,91,91,0.12); }
+
+.battle-picked-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.battle-slot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 44px;
+}
+
+.battle-slot .slot-tag {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; flex-shrink: 0;
+}
+.battle-slot.slot-a .slot-tag { background: var(--defense); color: #0b0d13; }
+.battle-slot.slot-b .slot-tag { background: var(--attack); color: #0b0d13; }
+
+.winner-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.winner-btn {
+  min-height: 64px;
+  border-radius: 14px;
+  border: 2px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 10px;
+}
+
+.winner-btn.selected.win-a { border-color: var(--defense); background: rgba(77,158,255,0.18); }
+.winner-btn.selected.win-b { border-color: var(--attack); background: rgba(255,91,91,0.18); }
+
+.finish-btns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.finish-btn {
+  min-height: 64px;
+  border-radius: 14px;
+  border: 2px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 8px 4px;
+}
+
+.finish-btn .pts { display: block; font-size: 11px; font-weight: 500; color: var(--text-dim); }
+.finish-btn.selected { border-color: var(--accent); background: rgba(255,122,26,0.18); color: var(--accent); }
+
+.battle-changed-part {
+  margin-top: 4px;
+}
+
+.battle-changed-part summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 8px 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.battle-saved-flash {
+  text-align: center;
+  color: var(--stamina);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 10px;
+  min-height: 20px;
+}
+
+.battle-log-row {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.battle-log-row .blr-top { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 13px; }
+.battle-log-row .blr-meta { color: var(--text-dim); margin-top: 3px; }
+
+.winrate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.winrate-row:last-child { border-bottom: none; }
+.winrate-row .wr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.winrate-row .wr-record { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+
+/* ---- compare view ---- */
+.compare-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.compare-card .cc-parts { font-weight: 600; margin-bottom: 8px; }
+
+.compare-scores {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: center;
+}
+
+.compare-scores > div { flex: 1; }
+.compare-scores .cs-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+.compare-scores .cs-value { font-size: 16px; font-weight: 700; }
+.compare-delta.up { color: var(--stamina); }
+.compare-delta.down { color: var(--attack); }
+
+@media (min-width: 768px) {
+  .compare-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .compare-table th, .compare-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  .compare-card { display: none; }
+}
+@media (max-width: 767px) {
+  .compare-table { display: none; }
+}
+
+/* ---- part editor measured inputs ---- */
+.measured-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.measured-field label { flex: 1; font-size: 12px; color: var(--text-dim); }
+.measured-field input {
+  width: 70px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-size: 14px;
+  min-height: 40px;
 }

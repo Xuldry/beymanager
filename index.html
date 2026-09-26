@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, interactive-widget=resizes-content">
 <title>BeyManager</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#201f23">
@@ -15,13 +15,14 @@
   <div class="brand">
     <span class="brand-icon">◈</span>
     <div>
-      <h1>BeyManager <span class="build-tag">Build 2</span></h1>
+      <h1>BeyManager <span class="build-tag">Build 3</span></h1>
       <p class="tagline">Your Beyblade collection, organized</p>
     </div>
   </div>
   <nav class="tabs" id="mainTabs">
-    <button class="tab-btn active" data-tab="mybeys">My Beys</button>
+    <button class="tab-btn active" data-tab="mybeys">Beys</button>
     <button class="tab-btn" data-tab="builder">Builder</button>
+    <button class="tab-btn" data-tab="battles">Battles</button>
     <button class="tab-btn" data-tab="database">Database</button>
   </nav>
 </header>
@@ -94,13 +95,36 @@
       </div>
     </div>
 
-    <h3 class="section-title">Best Combos You Can Build Right Now</h3>
-    <p class="hint">Ranked by estimated overall power, using only parts you own.</p>
-    <div class="ranked-combos" id="bestCombos"></div>
+    <h3 class="section-title">Recommendations</h3>
+    <p class="hint">There's no single "best combo" — a combo great for Attack can be bad for Stamina. Scores are per-role. Tap a card for the full breakdown.</p>
+    <div class="subtabs" id="roleTabs">
+      <button class="subtab-btn active" data-role="attack">Attack</button>
+      <button class="subtab-btn" data-role="stamina">Stamina</button>
+      <button class="subtab-btn" data-role="defense">Defense</button>
+      <button class="subtab-btn" data-role="compare">Compare</button>
+    </div>
+    <div class="ranked-combos" id="roleBoard"></div>
+
+    <details class="tuning-panel">
+      <summary>⚙ Tuning &amp; provenance</summary>
+      <div id="tuningContent"></div>
+    </details>
 
     <h3 class="section-title">Parts Worth Buying Next</h3>
     <p class="hint">Missing parts that would fill a gap in your collection or unlock strong combos. Tap one to see its full database entry.</p>
     <div class="ranked-parts" id="suggestedParts"></div>
+  </section>
+
+  <!-- BATTLES TAB -->
+  <section class="tab-panel" id="panel-battles">
+    <div id="battleEntry"></div>
+
+    <h3 class="section-title">Recent Battles</h3>
+    <div id="battleLog"></div>
+
+    <h3 class="section-title">Part Win Rates</h3>
+    <p class="hint">Computed from your logged battles only.</p>
+    <div id="battleStats"></div>
   </section>
 
   <!-- DATABASE TAB -->
@@ -143,9 +167,17 @@
   </div>
 </div>
 
+<div class="sheet-backdrop" id="sheetBackdrop">
+  <div class="bottom-sheet" id="bottomSheet">
+    <div class="sheet-handle"></div>
+    <div id="sheetContent"></div>
+  </div>
+</div>
+
 <script src="data/blades.js"></script>
 <script src="data/ratchets.js"></script>
 <script src="data/bits.js"></script>
+<script src="scoring.js"></script>
 <script src="app.js"></script>
 <script>
   // Only works on a secure origin (https, or localhost for local testing) —
