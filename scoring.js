@@ -308,7 +308,8 @@
       burst: resolveField('bits', bit.id, 'burst', 'bitBurst', function () { return 5; }, bootstrapCache),
       atk: resolveField('bits', bit.id, 'atk', null, atkDefault),
       def: resolveField('bits', bit.id, 'def', null, defDefault),
-      sta: resolveField('bits', bit.id, 'sta', null, staDefault)
+      sta: resolveField('bits', bit.id, 'sta', null, staDefault),
+      teeth: bit.teeth
     };
   }
 
@@ -322,11 +323,6 @@
   }
 
   // ================= combo metrics & scoring =================
-
-  function xdashOf(bitStatsResolved) {
-    var teethNorm = clamp(((bitStatsResolved.teeth - 10) / 6) * 10, 0, 10);
-    return clamp(teethNorm * 0.5 + bitStatsResolved.grip.value * 0.5, 0, 10);
-  }
 
   // bladeAgg: resolved stats for one blade, or averaged across CX lock/main/assist.
   function aggregateBladeStats(list) {
@@ -415,20 +411,6 @@
     return out;
   }
 
-  // Old model, kept only for the Compare view (section 7f) — sums all three
-  // stats with no role weighting, no xdash/burst, no penalties.
-  function scoreComboOldSum(blade, ratchet, bit, blade2, blade3, bootstrapCache) {
-    bootstrapCache = bootstrapCache || { bladeRecoil: [], ratchetBurst: [], bitGrip: [], bitBurst: [] };
-    var bladeList = [blade, blade2, blade3].filter(Boolean).map(function (b) { return bladeStats(b, bootstrapCache); });
-    var bladeAgg = aggregateBladeStats(bladeList);
-    var rStats = ratchetStatsOf(ratchet, bootstrapCache);
-    var bStats = bitStatsOf(bit, bootstrapCache);
-    var atk = bladeAgg.atk.value * 0.5 + rStats.atk.value * 0.25 + bStats.atk.value * 0.25;
-    var def = bladeAgg.def.value * 0.5 + rStats.def.value * 0.25 + bStats.def.value * 0.25;
-    var sta = bladeAgg.sta.value * 0.5 + rStats.sta.value * 0.25 + bStats.sta.value * 0.25;
-    return round2(atk + def + sta);
-  }
-
   // ================= battle log -> Elo-style learning =================
 
   // currentValueHint: the stat's true currently-resolved value (from
@@ -484,7 +466,7 @@
 
     function touch(cat, id, field, direction) {
       if (!id) return;
-      var isChangedTarget = changed && changed.cat === cat && (changed.id === id);
+      var isChangedTarget = changed && changed.cat === cat && (changed.id === id || changed.otherId === id);
       if (changed && !isChangedTarget) return; // attribute solely to the isolated variable when we know it
       var hint = resolveCurrent ? resolveCurrent(cat, id, field) : null;
       bumpLearned(cat, id, field, direction, !!changed, hint);
@@ -516,7 +498,6 @@
     roleWeights: roleWeights,
     scoreCombo: scoreCombo,
     scoreComboAllRoles: scoreComboAllRoles,
-    scoreComboOldSum: scoreComboOldSum,
     detectChangedPart: detectChangedPart,
     applyBattleResult: applyBattleResult,
     rankValueInList: rankValueInList,

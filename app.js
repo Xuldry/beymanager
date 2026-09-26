@@ -148,6 +148,20 @@
     saveStore();
   }
 
+  // Removing a custom part must also remove any trace of it from the tuning
+  // system — otherwise a leftover id sits in an ordinal list forever,
+  // silently skewing rankValueInList()'s denominator for every other ranked
+  // part on that axis, and any measured/learned value for it just leaks.
+  function purgePartData(cat, id) {
+    TUNING_AXES.forEach(function (axis) {
+      if (axis.cat !== cat || !store.ordinalLists[axis.key]) return;
+      var pos = store.ordinalLists[axis.key].indexOf(id);
+      if (pos !== -1) store.ordinalLists[axis.key].splice(pos, 1);
+    });
+    if (store.measuredOverrides[cat]) delete store.measuredOverrides[cat][id];
+    if (store.learnedStats[cat]) delete store.learnedStats[cat][id];
+  }
+
   // ---------------- backup / restore ----------------
   // No backend exists (static site) — a downloaded .json file is the closest
   // thing to a real, portable, user-controlled "database file" this app can
@@ -568,6 +582,7 @@
       delBtn.addEventListener('click', function () {
         store.customParts[cat] = store.customParts[cat].filter(function (x) { return x.id !== id; });
         delete store.owned[cat][id];
+        purgePartData(cat, id);
         saveStore();
         rebuildDerived();
         closeModal();
@@ -1491,7 +1506,6 @@
       attack: 'Ranked by your battle record when you have enough logged (5+ battles), estimated Attack score otherwise. Estimates use only parts you own.',
       stamina: 'Ranked by your battle record when you have enough logged (5+ battles), estimated Stamina score otherwise. Estimates use only parts you own.',
       defense: 'Ranked by your battle record when you have enough logged (5+ battles), estimated Defense score otherwise. Estimates use only parts you own.',
-      compare: 'Old model vs new model, by rank — not raw score, since the two scales aren’t comparable.',
       'meta-gap': 'Top-tier parts (per your manually-synced tier list) that you don’t own yet.'
     };
     document.getElementById('roleHint') && (document.getElementById('roleHint').textContent = hints[roleBoardState]);
@@ -1564,7 +1578,6 @@
 
   function renderRoleBoard() {
     var container = document.getElementById('roleBoard');
-    if (roleBoardState === 'compare') { renderCompareView(container); return; }
     if (roleBoardState === 'meta-gap') { renderMetaGapView(container); return; }
 
     var candidates = ownedComboCandidates();
@@ -1648,57 +1661,6 @@
         openProvSheet(el.dataset.provField, el.dataset.provSource, el.dataset.provValue, el.dataset.provConf);
       });
     });
-  }
-
-  // Old (flat-sum) and new (per-role) scores are on different, incomparable
-  // scales — a raw delta between them is meaningless (it read ~-9 for
-  // everything). Rank is comparable across models even when the underlying
-  // numbers aren't, so that's what's shown here instead.
-  function renderCompareView(container) {
-    var candidates = ownedComboCandidates();
-    if (!candidates.length) {
-      container.innerHTML = '<div class="empty-state">Mark some blades, ratchets and bits as owned in the Database tab to see combo suggestions.</div>';
-      return;
-    }
-    var rows = candidates.map(function (c) {
-      var oldScore = window.BeyScoring.scoreComboOldSum(c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE);
-      var newBest = Math.max(
-        window.BeyScoring.scoreCombo('attack', c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE).score,
-        window.BeyScoring.scoreCombo('stamina', c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE).score,
-        window.BeyScoring.scoreCombo('defense', c.blade, c.ratchet, c.bit, c.blade2, c.blade3, BOOTSTRAP_CACHE).score
-      );
-      return { label: c.label, oldScore: oldScore, newBest: newBest };
-    });
-    var byOld = rows.slice().sort(function (a, b) { return b.oldScore - a.oldScore; });
-    byOld.forEach(function (r, i) { r.oldRank = i + 1; });
-    var byNew = rows.slice().sort(function (a, b) { return b.newBest - a.newBest; });
-    byNew.forEach(function (r, i) { r.newRank = i + 1; });
-    rows.forEach(function (r) { r.rankChange = r.oldRank - r.newRank; });
-    rows.sort(function (a, b) { return Math.abs(b.rankChange) - Math.abs(a.rankChange); });
-    rows = rows.slice(0, 15);
-
-    function changeHTML(r) {
-      if (r.rankChange === 0) return '<span class="compare-delta flat">–</span>';
-      var up = r.rankChange > 0;
-      return '<span class="compare-delta ' + (up ? 'up' : 'down') + '">' + (up ? '↑' : '↓') + Math.abs(r.rankChange) + '</span>';
-    }
-
-    var cards = rows.map(function (r) {
-      return '<div class="compare-card">' +
-        '<div class="cc-parts">' + escapeHtml(r.label) + '</div>' +
-        '<div class="compare-scores">' +
-          '<div><div class="cs-label">Old rank</div><div class="cs-value">#' + r.oldRank + '</div></div>' +
-          '<div><div class="cs-label">New rank</div><div class="cs-value">#' + r.newRank + '</div></div>' +
-          '<div><div class="cs-label">Change</div><div class="cs-value">' + changeHTML(r) + '</div></div>' +
-        '</div></div>';
-    }).join('');
-
-    var tableRows = rows.map(function (r) {
-      return '<tr><td>' + escapeHtml(r.label) + '</td><td>#' + r.oldRank + '</td><td>#' + r.newRank + '</td><td>' + changeHTML(r) + '</td></tr>';
-    }).join('');
-    var table = '<table class="compare-table"><thead><tr><th>Combo</th><th>Old rank</th><th>New rank</th><th>Change</th></tr></thead><tbody>' + tableRows + '</tbody></table>';
-
-    container.innerHTML = cards + table;
   }
 
   // The competitive-buying-guide view: top-tier (S/A) parts the user
