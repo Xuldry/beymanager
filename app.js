@@ -887,11 +887,12 @@
   }
 
   function updateComboPreview() {
+    var integrated = syncIntegratedRatchet(selBlade, selRatchet, cxModeCheckbox.checked);
     var combo = getCurrentCombo();
-    var ready = (combo.isCX ? !!(combo.lock || combo.main || combo.assist) : !!combo.blade) && !!combo.ratchet && !!combo.bit;
+    var ready = (combo.isCX ? !!(combo.lock || combo.main || combo.assist) : !!combo.blade) && (!!combo.ratchet || integrated) && !!combo.bit;
     document.getElementById('btnSaveCombo').disabled = !ready;
     if (!ready) {
-      document.getElementById('statBars').innerHTML = '<div class="empty-state">Pick a blade, ratchet and bit to see scores.</div>';
+      document.getElementById('statBars').innerHTML = '<div class="empty-state">Pick a blade, ratchet and bit to see scores (blades with a built-in ratchet don\'t need one).</div>';
       document.getElementById('comboMeta').innerHTML = '';
       return;
     }
@@ -927,11 +928,26 @@
     var combo = getCurrentCombo();
     var entry = combo.isCX
       ? { isCX: true, lock: combo.lock && combo.lock.id, main: combo.main && combo.main.id, assist: combo.assist && combo.assist.id, ratchet: combo.ratchet && combo.ratchet.id, bit: combo.bit && combo.bit.id }
-      : { isCX: false, blade: combo.blade && combo.blade.id, ratchet: combo.ratchet && combo.ratchet.id, bit: combo.bit && combo.bit.id };
+      : { isCX: false, blade: combo.blade && combo.blade.id, ratchet: (combo.ratchet && combo.ratchet.id) || null, bit: combo.bit && combo.bit.id };
     store.combos.push(entry);
     saveStore();
     renderSavedCombos();
   });
+
+  // A few blades (e.g. Bullet Griffon, Glory Valkyrie) have their ratchet
+  // molded in — they're flagged integratedRatchet in data/blades.js and a
+  // combo using one has no separate ratchet (stored as ratchet: null).
+  function bladeHasIntegratedRatchet(id) { var b = byId.blades[id]; return !!(b && b.integratedRatchet); }
+  function entryHasIntegratedRatchet(entry) { return !!entry && !entry.isCX && bladeHasIntegratedRatchet(entry.blade); }
+  function syncIntegratedRatchet(bladeSel, ratchetSel, isCX) {
+    var integrated = !isCX && bladeHasIntegratedRatchet(bladeSel.value);
+    ratchetSel.disabled = integrated;
+    if (integrated) ratchetSel.value = '';
+    var label = ratchetSel.parentNode.querySelector('label');
+    if (label) label.textContent = integrated ? 'Ratchet (built into this blade)' : 'Ratchet';
+    return integrated;
+  }
+  function ratchetLabel(entry) { return entry.ratchet || (entryHasIntegratedRatchet(entry) ? 'integrated' : '—'); }
 
   function bitName(id) { return (byId.bits[id] && byId.bits[id].name) || id || '—'; }
 
@@ -940,10 +956,10 @@
       var parts = [entry.lock, entry.main, entry.assist].filter(Boolean).map(function (id) {
         return byId.blades[id] ? byId.blades[id].name : id;
       });
-      return parts.join(' + ') + ' / ' + (entry.ratchet || '—') + ' / ' + bitName(entry.bit);
+      return parts.join(' + ') + ' / ' + ratchetLabel(entry) + ' / ' + bitName(entry.bit);
     }
     var bladeName = entry.blade && byId.blades[entry.blade] ? byId.blades[entry.blade].name : '—';
-    return bladeName + ' / ' + (entry.ratchet || '—') + ' / ' + bitName(entry.bit);
+    return bladeName + ' / ' + ratchetLabel(entry) + ' / ' + bitName(entry.bit);
   }
 
   // Compact form for tight spaces (a deck's "3 combos on one line" summary)
@@ -958,6 +974,7 @@
     if (!entry) return '⚠ combo deleted';
     var bladeId = entry.isCX ? entry.main : entry.blade;
     var bladeName = bladeId && byId.blades[bladeId] ? byId.blades[bladeId].name : '—';
+    if (entryHasIntegratedRatchet(entry)) return spacedPartName(bladeName) + ' ' + (entry.bit || '');
     return spacedPartName(bladeName) + ' ' + (entry.ratchet || '—') + (entry.bit || '');
   }
 
@@ -1573,6 +1590,10 @@
       document.getElementById('editStdGroup').style.display = editCX.checked ? 'none' : '';
       document.getElementById('editCXGroup').style.display = editCX.checked ? '' : 'none';
     });
+    function syncEditRatchet() { return syncIntegratedRatchet(document.getElementById('editBlade'), document.getElementById('editRatchet'), editCX.checked); }
+    document.getElementById('editBlade').addEventListener('change', syncEditRatchet);
+    editCX.addEventListener('change', syncEditRatchet);
+    syncEditRatchet();
     document.getElementById('editCancelBtn').addEventListener('click', function () { openComboModal(idx, false); });
     document.getElementById('editSaveBtn').addEventListener('click', function () {
       var entry = store.combos[idx];
@@ -1588,8 +1609,9 @@
         newEntry = { isCX: true, lock: lock || undefined, main: main || undefined, assist: assist || undefined, ratchet: ratchet, bit: bit };
       } else {
         var blade = document.getElementById('editBlade').value;
-        if (!blade || !ratchet || !bit) { document.getElementById('editWarning').style.display = ''; return; }
-        newEntry = { isCX: false, blade: blade, ratchet: ratchet, bit: bit };
+        var editIntegrated = bladeHasIntegratedRatchet(blade);
+        if (!blade || (!ratchet && !editIntegrated) || !bit) { document.getElementById('editWarning').style.display = ''; return; }
+        newEntry = { isCX: false, blade: blade, ratchet: editIntegrated ? null : ratchet, bit: bit };
       }
       if (entry.name) newEntry.name = entry.name;
       store.combos[idx] = newEntry;
@@ -1621,7 +1643,7 @@
       } else {
         partRows.push(['Blade', entry.blade && byId.blades[entry.blade] ? partDisplayName('blades', byId.blades[entry.blade]) : '—']);
       }
-      partRows.push(['Ratchet', entry.ratchet || '—']);
+      partRows.push(['Ratchet', entry.ratchet || (entryHasIntegratedRatchet(entry) ? 'Built into the blade' : '—')]);
       partRows.push(['Bit', bitName(entry.bit)]);
       partsHTML = partRows.map(function (r) { return '<div class="modal-spec-row"><span>' + r[0] + '</span><span>' + escapeHtml(r[1]) + '</span></div>'; }).join('') +
         '<button class="btn-icon" id="editPartsBtn" style="margin-top:6px">✏️ Edit parts</button>';
@@ -1750,9 +1772,16 @@
     var ownedMains = ownedList('blades', CX_MAINBLADES);
     var ownedAssists = ownedList('blades', CX_ASSISTBLADES);
     var out = [];
-    if (!ownedRatchets.length || !ownedBits.length || (!ownedBlades.length && !ownedMains.length)) return out;
+    if (!ownedBits.length || (!ownedBlades.length && !ownedMains.length)) return out;
 
     ownedBlades.forEach(function (blade) {
+      if (blade.integratedRatchet) {
+        ownedBits.forEach(function (bit) {
+          out.push({ label: blade.name + ' / ' + bit.name, blade: blade, ratchet: null, bit: bit,
+            entry: { isCX: false, blade: blade.id, ratchet: null, bit: bit.id } });
+        });
+        return;
+      }
       ownedRatchets.forEach(function (ratchet) {
         ownedBits.forEach(function (bit) {
           out.push({ label: blade.name + ' / ' + ratchet.id + ' / ' + bit.name, blade: blade, ratchet: ratchet, bit: bit,
@@ -1851,7 +1880,7 @@
       var bladeId = c.entry.isCX ? c.entry.main : c.entry.blade;
       var partProv = '<div class="breakdown-row" style="margin-top:6px"><span class="b-label">Blade</span>' + metaTierBadgeHTML('blades', bladeId) + '<span style="flex:1"></span>' +
           provBadgeHTML(r.bladeStats.atk, 'blade atk') + provBadgeHTML(r.bladeStats.recoil, 'blade recoil') + '</div>' +
-        '<div class="breakdown-row"><span class="b-label">Ratchet</span>' + metaTierBadgeHTML('ratchets', c.entry.ratchet) + '<span style="flex:1"></span>' + provBadgeHTML(r.ratchetStats.burst, 'ratchet burst') + '</div>' +
+        (r.ratchetStats ? '<div class="breakdown-row"><span class="b-label">Ratchet</span>' + metaTierBadgeHTML('ratchets', c.entry.ratchet) + '<span style="flex:1"></span>' + provBadgeHTML(r.ratchetStats.burst, 'ratchet burst') + '</div>' : '<div class="breakdown-row"><span class="b-label">Ratchet</span><span style="flex:1"></span><span class="hint" style="margin:0">built into blade</span></div>') +
         '<div class="breakdown-row"><span class="b-label">Bit</span>' + metaTierBadgeHTML('bits', c.entry.bit) + '<span style="flex:1"></span>' + provBadgeHTML(r.bitStats.grip, 'bit grip') + provBadgeHTML(r.bitStats.burst, 'bit burst') + '</div>';
       var warningsHTML = r.warnings.length
         ? r.warnings.map(function (w) { return '<div class="warning-row"><span class="w-label">' + escapeHtml(w.label) + '</span></div>'; }).join('')
@@ -2432,6 +2461,7 @@
         document.getElementById('oppStdGroup').style.display = oppCX.checked ? 'none' : '';
         document.getElementById('oppCXGroup').style.display = oppCX.checked ? '' : 'none';
         fillOppPicker(profile.entry);
+        syncOppRatchet();
         document.getElementById('oppName').value = profile.name;
         forgetBtn.style.display = '';
       });
@@ -2444,6 +2474,9 @@
         renderBattleEntry();
       });
     }
+    function syncOppRatchet() { return syncIntegratedRatchet(document.getElementById('oppBlade'), document.getElementById('oppRatchet'), oppCX.checked); }
+    document.getElementById('oppBlade').addEventListener('change', syncOppRatchet);
+    oppCX.addEventListener('change', syncOppRatchet);
     document.getElementById('oppCancelBtn').addEventListener('click', function () {
       battleEntryState.opponentPickerOpen = false;
       renderBattleEntry();
@@ -2461,8 +2494,9 @@
         entry = { isCX: true, lock: lock || undefined, main: main || undefined, assist: assist || undefined, ratchet: ratchet, bit: bit };
       } else {
         var blade = document.getElementById('oppBlade').value;
-        if (!blade || !ratchet || !bit) { document.getElementById('oppWarning').style.display = ''; return; }
-        entry = { isCX: false, blade: blade, ratchet: ratchet, bit: bit };
+        var oppIntegrated = bladeHasIntegratedRatchet(blade);
+        if (!blade || (!ratchet && !oppIntegrated) || !bit) { document.getElementById('oppWarning').style.display = ''; return; }
+        entry = { isCX: false, blade: blade, ratchet: oppIntegrated ? null : ratchet, bit: bit };
       }
       var name = document.getElementById('oppName').value.trim();
       if (name) entry.name = name;

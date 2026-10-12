@@ -350,6 +350,20 @@
   function comboMetrics(bladeAgg, ratchetStats, bitStatsResolved) {
     var teeth = bitStatsResolved.teeth != null ? bitStatsResolved.teeth : 12;
     var xdash = clamp((((teeth - 10) / 6) * 10) * 0.5 + bitStatsResolved.grip.value * 0.5, 0, 10);
+    if (!ratchetStats) {
+      // Blade has its ratchet built in: there's no separate ratchet to read
+      // stats from, so average only the two parts we actually know (same
+      // 2:1 blade:bit proportion) rather than inventing numbers for one.
+      return {
+        atk: bladeAgg.atk.value * (2 / 3) + bitStatsResolved.atk.value * (1 / 3),
+        def: bladeAgg.def.value * (2 / 3) + bitStatsResolved.def.value * (1 / 3),
+        sta: bladeAgg.sta.value * (2 / 3) + bitStatsResolved.sta.value * (1 / 3),
+        xdash: xdash,
+        burst: bitStatsResolved.burst.value,
+        recoil: bladeAgg.recoil.value,
+        owd: bladeAgg.owd.value
+      };
+    }
     return {
       atk: bladeAgg.atk.value * 0.5 + ratchetStats.atk.value * 0.25 + bitStatsResolved.atk.value * 0.25,
       def: bladeAgg.def.value * 0.5 + ratchetStats.def.value * 0.25 + bitStatsResolved.def.value * 0.25,
@@ -385,7 +399,7 @@
 
     var bladeList = [blade, blade2, blade3].filter(Boolean).map(function (b) { return bladeStats(b, bootstrapCache); });
     var bladeAgg = aggregateBladeStats(bladeList);
-    var rStats = ratchetStatsOf(ratchet, bootstrapCache);
+    var rStats = ratchet ? ratchetStatsOf(ratchet, bootstrapCache) : null;
     var bStats = bitStatsOf(bit, bootstrapCache);
 
     var m = comboMetrics(bladeAgg, rStats, bStats);
