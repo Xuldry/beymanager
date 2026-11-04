@@ -15,14 +15,13 @@
   <div class="brand">
     <span class="brand-icon">◈</span>
     <div>
-      <h1>BeyManager <span class="build-tag">Build 7.20</span></h1>
+      <h1>BeyManager <span class="build-tag">Build 8.00</span></h1>
       <p class="tagline">Your Beyblade collection, organized</p>
     </div>
   </div>
   <nav class="tabs" id="mainTabs">
     <button class="tab-btn active" data-tab="mybeys">Beys</button>
     <button class="tab-btn" data-tab="builder">Builder</button>
-    <button class="tab-btn" data-tab="battles">Battles</button>
     <button class="tab-btn" data-tab="database">Database</button>
     <button class="tab-btn" data-tab="tierlist">Tier List</button>
   </nav>
@@ -100,44 +99,11 @@
         <button class="btn-primary" id="btnSaveCombo">Save this combo</button>
       </div>
 
-      <div class="combo-result" id="comboResult">
-        <h3>Live Preview</h3>
-        <p class="hint">Same per-role engine as Recommendations below — pick a blade, ratchet and bit to see how this combo scores for Attack, Stamina and Defense.</p>
-        <div class="stat-bars" id="statBars"></div>
-        <div class="combo-meta" id="comboMeta"></div>
-      </div>
     </div>
 
-    <h3 class="section-title">Recommendations</h3>
-    <p class="hint" id="roleHint">There's no single "best combo" — a combo great for Attack can be bad for Stamina. Scores are per-role. Tap a card for the full breakdown.</p>
-    <div class="subtabs" id="roleTabs">
-      <button class="subtab-btn active" data-role="attack">Attack</button>
-      <button class="subtab-btn" data-role="stamina">Stamina</button>
-      <button class="subtab-btn" data-role="defense">Defense</button>
-      <button class="subtab-btn" data-role="meta-gap">Buy Next</button>
-    </div>
-    <div class="ranked-combos" id="roleBoard"></div>
-
-    <details class="tuning-panel">
-      <summary>⚙ Tuning &amp; provenance</summary>
-      <div id="tuningContent"></div>
-    </details>
-  </section>
-
-  <!-- BATTLES TAB -->
-  <section class="tab-panel" id="panel-battles">
-    <div id="battleEntry"></div>
-
-    <div class="section-title-row">
-      <h3 class="section-title" style="margin:0">Recent Battles</h3>
-      <button class="btn-secondary" id="btnSelectBattles" style="width:auto;min-height:36px;padding:6px 12px">Select</button>
-    </div>
-    <div id="battleLog"></div>
-    <div class="deck-sticky-bar" id="battleSelectBar"></div>
-
-    <h3 class="section-title">Part Win Rates</h3>
-    <p class="hint">Computed from your logged battles only.</p>
-    <div id="battleStats"></div>
+    <h3 class="section-title">Buy Next</h3>
+    <p class="hint">What to buy next — top-tier parts (per your synced tier list) first, gap-filling suggestions after.</p>
+    <div id="buyNextBoard"></div>
   </section>
 
   <!-- DATABASE TAB -->
@@ -187,13 +153,6 @@
   <div class="part-modal-inner">
     <button class="modal-close" id="modalClose">&times;</button>
     <div id="modalContent"></div>
-  </div>
-</div>
-
-<div class="sheet-backdrop" id="sheetBackdrop">
-  <div class="bottom-sheet" id="bottomSheet">
-    <div class="sheet-handle"></div>
-    <div id="sheetContent"></div>
   </div>
 </div>
 

@@ -290,10 +290,6 @@ body {
   margin-bottom: 24px;
 }
 
-@media (min-width: 700px) {
-  .combo-builder { grid-template-columns: 1fr 1fr; }
-}
-
 .combo-picker {
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -338,76 +334,10 @@ body {
 
 .btn-primary:hover { filter: brightness(1.1); }
 
-.combo-result {
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
-}
-
-.combo-result h3 { margin-top: 0; }
-
 .hint {
   font-size: 12px;
   color: var(--text-dim);
   line-height: 1.4;
-}
-
-.stat-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 14px 0;
-}
-
-.stat-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.stat-label {
-  width: 62px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.stat-track {
-  flex: 1;
-  height: 12px;
-  background: var(--bg-elev-2);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.stat-fill {
-  height: 100%;
-  border-radius: 6px;
-}
-
-.stat-fill.atk { background: var(--attack); }
-.stat-fill.def { background: var(--defense); }
-.stat-fill.sta { background: var(--stamina); }
-
-.stat-value {
-  width: 30px;
-  font-size: 11px;
-  color: var(--text-dim);
-  text-align: right;
-}
-
-.combo-meta {
-  font-size: 12px;
-  color: var(--text-dim);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.combo-meta span {
-  background: var(--bg-elev-2);
-  padding: 4px 8px;
-  border-radius: 6px;
 }
 
 .section-title {
@@ -415,7 +345,8 @@ body {
   font-size: 16px;
 }
 
-.saved-combos, .ranked-combos, .saved-decks {
+.saved-combos,
+.saved-decks {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -464,10 +395,9 @@ body {
   font-weight: 800;
 }
 
-/* ---- bulk select (delete) mode: combos and battle log rows ---- */
-.combo-chip-v2.bulk-selectable, .battle-log-row.bulk-selectable { cursor: pointer; }
+/* ---- bulk select (delete) mode: combo rows ---- */
+.combo-chip-v2.bulk-selectable { cursor: pointer; }
 .combo-chip-v2.bulk-selected { border-color: var(--attack); box-shadow: 0 0 0 1px var(--attack) inset; }
-.battle-log-row.bulk-selected { border-color: var(--attack); box-shadow: 0 0 0 1px var(--attack) inset; }
 
 .bulk-check {
   position: absolute;
@@ -486,10 +416,6 @@ body {
   font-weight: 800;
 }
 .bulk-selected .bulk-check { background: var(--attack); border-color: var(--attack); color: white; }
-
-.battle-log-row { position: relative; }
-.battle-log-row .bulk-check { top: 10px; }
-.battle-log-row.bulk-selectable { padding-right: 40px; }
 
 .deck-sticky-bar {
   display: none;
@@ -637,24 +563,13 @@ body {
   flex-shrink: 0;
 }
 
-.cc-top .btn-del.confirm-delete,
-.blr-top .btn-del.confirm-delete {
+.cc-top .btn-del.confirm-delete {
   background: var(--attack);
   color: white;
   font-size: 11px;
   font-weight: 700;
   border-radius: 6px;
   padding: 4px 8px;
-}
-
-.blr-top .btn-del {
-  background: none;
-  border: none;
-  color: var(--attack);
-  cursor: pointer;
-  font-size: 15px;
-  flex-shrink: 0;
-  line-height: 1;
 }
 
 .combo-rename-input {
@@ -690,86 +605,8 @@ body {
 .cc-stat.sta { color: var(--stamina); }
 .cc-stat-best { background: var(--bg-elev); box-shadow: 0 0 0 1px currentColor inset; }
 
-.preview-warning {
-  display: inline-block;
-  font-size: 11px;
-  color: var(--accent);
-  margin-right: 8px;
-}
-
 .combo-chip-v2 {
   cursor: pointer;
-}
-
-.cc-wl {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  border-top: 1px solid var(--border);
-  padding-top: 8px;
-}
-
-.wl-label {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.wl-record {
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.wl-record .wl-win { color: var(--stamina); }
-.wl-record .wl-loss { color: var(--attack); }
-
-.wl-tap-hint {
-  font-size: 11px;
-  color: var(--text-dim);
-  opacity: 0.6;
-}
-
-.combo-wl-summary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.combo-wl-summary .wl-win { color: var(--stamina); }
-.combo-wl-summary .wl-loss { color: var(--attack); }
-.combo-wl-summary .wl-pct { color: var(--text-dim); font-weight: 400; font-size: 12px; }
-
-.combo-detail-battles {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  max-height: 260px;
-  overflow-y: auto;
-}
-
-.combo-detail-battles .wl-win { color: var(--stamina); }
-.combo-detail-battles .wl-loss { color: var(--attack); }
-
-.btn-save-combo {
-  font-size: 11px;
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--accent);
-  background: none;
-  color: var(--accent);
-  cursor: pointer;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.btn-save-combo:disabled {
-  border-color: var(--stamina);
-  color: var(--stamina);
-  cursor: default;
-  opacity: 0.8;
 }
 
 .saved-combos-controls {
@@ -1071,100 +908,6 @@ body {
   text-align: center;
 }
 
-/* ================= v2 recommendation engine ================= */
-
-/* ---- role board cards (expandable breakdown) ---- */
-.role-card {
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin-bottom: 8px;
-  overflow: hidden;
-}
-
-.role-card-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
-  cursor: pointer;
-  min-height: 44px;
-}
-
-.role-card-head .combo-parts {
-  flex: 1;
-  font-weight: 600;
-  font-size: 13px;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.role-card-basis {
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--text-dim);
-  text-transform: none;
-}
-
-.role-card-score {
-  text-align: right;
-  flex-shrink: 0;
-}
-
-.role-card-score .num {
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.role-card-score .sub {
-  font-size: 10px;
-  color: var(--text-dim);
-  display: block;
-}
-
-.role-card-caret {
-  color: var(--text-dim);
-  transition: transform .15s;
-  flex-shrink: 0;
-}
-
-.role-card.open .role-card-caret { transform: rotate(180deg); }
-
-.role-card-body {
-  display: none;
-  padding: 0 12px 12px;
-  border-top: 1px solid var(--border);
-}
-
-.role-card.open .role-card-body { display: block; padding-top: 10px; }
-
-.breakdown-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  padding: 4px 0;
-}
-
-.breakdown-row .b-label { width: 70px; flex-shrink: 0; color: var(--text-dim); }
-.breakdown-row .b-track { flex: 1; height: 8px; background: var(--bg-elev-2); border-radius: 4px; overflow: hidden; }
-.breakdown-row .b-fill { height: 100%; background: var(--accent); border-radius: 4px; }
-.breakdown-row .b-val { width: 60px; flex-shrink: 0; text-align: right; font-variant-numeric: tabular-nums; }
-
-.warning-row {
-  background: rgba(255,122,26,0.08);
-  border: 1px solid rgba(255,122,26,0.3);
-  border-radius: 8px;
-  padding: 8px 10px;
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--text);
-}
-
-.no-warnings { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
-
 .meta-tier-badge {
   display: inline-flex;
   align-items: center;
@@ -1181,241 +924,7 @@ body {
 .meta-tier-badge.tier-A { background: #c0c0c0; color: #1a1a1a; }
 .meta-tier-badge.tier-B { background: #cd7f32; color: #1a0f00; }
 
-.part-card-winrate {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  background: rgba(0,0,0,0.6);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--stamina);
-  z-index: 1;
-}
-
-/* ---- provenance badges ---- */
-.prov-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  font-size: 10px;
-  font-weight: 700;
-  border: 1.5px solid currentColor;
-  cursor: pointer;
-  flex-shrink: 0;
-  background: var(--bg);
-}
-
-.prov-measured { color: var(--stamina); }
-.prov-learned { color: var(--accent); }
-.prov-ranked { color: var(--defense); }
-.prov-default { color: var(--text-dim); }
-
-/* ---- bottom sheet ---- */
-.sheet-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.55);
-  z-index: 200;
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.sheet-backdrop.open { display: flex; }
-
-.bottom-sheet {
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-bottom: none;
-  border-radius: 16px 16px 0 0;
-  width: 100%;
-  max-width: 600px;
-  max-height: 80vh;
-  overflow-y: auto;
-  padding: 8px 18px 22px;
-}
-
-.sheet-handle {
-  width: 36px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  margin: 6px auto 14px;
-}
-
-/* ---- tuning panel ---- */
-.tuning-panel {
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  margin: 14px 0;
-}
-
-.tuning-panel summary {
-  cursor: pointer;
-  padding: 14px;
-  font-weight: 600;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  list-style: none;
-}
-
-.tuning-panel summary::-webkit-details-marker { display: none; }
-.tuning-panel[open] summary { border-bottom: 1px solid var(--border); }
-
 #tuningContent { padding: 14px; display: flex; flex-direction: column; gap: 22px; }
-
-.tuning-block-title { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
-
-/* ---- weight steppers ---- */
-.weight-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-}
-
-.weight-row .w-label { flex: 1; font-size: 13px; min-width: 0; }
-
-.stepper {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.stepper button {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-elev-2);
-  color: var(--text);
-  font-size: 16px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.stepper .w-value {
-  width: 42px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-}
-
-.tuning-reset-btn {
-  font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: none;
-  color: var(--text-dim);
-  cursor: pointer;
-  margin-top: 8px;
-}
-
-/* ---- ordinal list editor ---- */
-.ordinal-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: var(--bg-elev-2);
-  border-radius: 8px;
-  padding: 6px 8px;
-  margin-bottom: 6px;
-}
-
-.ordinal-row .o-name { flex: 1; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ordinal-row .o-value { font-size: 12px; color: var(--text-dim); font-variant-numeric: tabular-nums; width: 34px; text-align: right; flex-shrink: 0; }
-
-.ordinal-btns { display: flex; gap: 4px; flex-shrink: 0; }
-
-.ordinal-btns button {
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.ordinal-add-row { display: flex; gap: 8px; margin-top: 8px; }
-.ordinal-add-row select { flex: 1; min-width: 0; }
-
-/* ---- legend ---- */
-.legend-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  font-size: 12px;
-}
-
-.legend-row .legend-desc { color: var(--text-dim); }
-
-/* ---- battle log: THE mobile-priority surface ---- */
-.battle-section-title {
-  font-size: 15px;
-  font-weight: 700;
-  margin: 4px 0 10px;
-}
-
-.battle-combo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.battle-combo-card {
-  background: var(--bg-elev);
-  border: 2px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 10px;
-  text-align: left;
-  cursor: pointer;
-  min-height: 56px;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.battle-combo-card.picked-a { border-color: var(--defense); background: rgba(77,158,255,0.12); }
-.battle-combo-card.picked-b { border-color: var(--attack); background: rgba(255,91,91,0.12); }
-
-.battle-combo-card.is-opponent { border-style: dashed; }
-
-.opp-tag {
-  display: inline-block;
-  font-size: 9px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  padding: 1px 4px;
-  margin-right: 5px;
-  vertical-align: middle;
-}
-
-.battle-combo-card.add-opponent-tile {
-  border-style: dashed;
-  color: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
 
 .opponent-picker {
   margin: -4px 0 14px;
@@ -1438,125 +947,4 @@ body {
   color: var(--text-dim);
   font-weight: 600;
   cursor: pointer;
-}
-
-.battle-picked-label {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-  display: block;
-}
-
-.winner-btns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.winner-btn {
-  min-height: 64px;
-  border-radius: 14px;
-  border: 2px solid var(--border);
-  background: var(--bg-elev);
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 10px;
-}
-
-.winner-btn.selected.win-a { border-color: var(--defense); background: rgba(77,158,255,0.18); }
-.winner-btn.selected.win-b { border-color: var(--attack); background: rgba(255,91,91,0.18); }
-
-.finish-btns {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.finish-btn {
-  min-height: 64px;
-  border-radius: 14px;
-  border: 2px solid var(--border);
-  background: var(--bg-elev);
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  padding: 8px 4px;
-}
-
-.finish-btn .pts { display: block; font-size: 11px; font-weight: 500; color: var(--text-dim); }
-.finish-btn.selected { border-color: var(--accent); background: rgba(255,122,26,0.18); color: var(--accent); }
-
-.battle-changed-part {
-  margin-top: 4px;
-}
-
-.battle-changed-part summary {
-  cursor: pointer;
-  font-size: 12px;
-  color: var(--text-dim);
-  padding: 8px 0;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-
-.battle-saved-flash {
-  text-align: center;
-  color: var(--stamina);
-  font-weight: 700;
-  font-size: 13px;
-  padding: 10px;
-  min-height: 20px;
-}
-
-.battle-log-row {
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  font-size: 12px;
-}
-
-.battle-log-row .blr-top { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 13px; }
-.battle-log-row .blr-meta { color: var(--text-dim); margin-top: 3px; }
-
-.winrate-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.winrate-row:last-child { border-bottom: none; }
-.winrate-row .wr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.winrate-row .wr-record { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
-
-/* ---- part editor measured inputs ---- */
-.measured-field {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0;
-}
-
-.measured-field label { flex: 1; font-size: 12px; color: var(--text-dim); }
-.measured-field input {
-  width: 70px;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-elev-2);
-  color: var(--text);
-  font-size: 14px;
-  min-height: 40px;
 }

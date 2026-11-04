@@ -1,21 +1,11 @@
-// BeyManager scoring engine v2.
+// BeyManager built-in combo estimates.
 //
-// Replaces the old "sum atk+def+sta" model, which rewarded generalists.
-// There is no single "best combo" — scoring happens once per role
-// (attack/stamina/defense) against a role-specific weight vector.
-//
-// CORE CONSTRAINT: Beyblade X publishes no owd/recoil/grip/burst numbers for
-// any part. This engine never invents an absolute number for those. Instead:
-//   - every uncertain stat is {value, source, confidence}, source one of
-//     "measured" (user typed it in) | "learned" (inferred from battle log)
-//     | "ranked" (user's own ordinal ordering) | "default" (built-in guess)
-//   - grip/recoil/burst are ORDINAL: the user maintains a short ordered list
-//     of parts they actually own, and value = rank position in that list,
-//     never a number they have to invent themselves. Parts not yet ranked
-//     fall back to a full bootstrap ordering (still ordinal, still no
-//     invented absolute magnitude) so scoring works before any ranking
-//     exists at all.
-//   - resolution priority for every stat: measured > learned > ranked > default.
+// Produces the three per-role (attack/stamina/defense) estimate scores shown
+// on saved combos. Beyblade X publishes no owd/recoil/grip/burst numbers, so
+// everything here is a built-in default derived from part type/shape/weight
+// (ordinal where no number exists) — a rough sorting aid, not a verdict.
+// The old tuning layer (user-measured values, battle-learned values, ranked
+// lists, weight overrides) was removed; nothing reads those store fields.
 (function () {
   'use strict';
 
@@ -42,39 +32,7 @@
   var SHAPE_TIER = { sharp: 0, round: 1, other: 2, flat: 3 };
   var TYPE_TIER = { Stamina: 0, Defense: 1, Balance: 2, Attack: 3 };
 
-  var CONFIDENCE = { default: 0.3, ranked: 0.6, measured: 0.9, learnedBase: 0.3, learnedCap: 0.85 };
-
-  var LEARN = { rate: 1.2, attributionBoost: 2.5, sampleCap: 12 };
-
-  // Known-real ratchets with a reputation for bursting easily — a concrete,
-  // checkable fact rather than a guessed burst-resistance number. Add more
-  // ids here as they're confirmed, rather than inventing a stat for them.
-  var BURST_PRONE_RATCHET_IDS = ['2-60'];
-
-  // Plain warning flags, no score effect. A flag the user can read and judge
-  // beats a multiplier they can't verify — see WARNING_FLAGS below. Kept
-  // data-driven ({id, label, test}) so more can be added without touching
-  // the code that renders/evaluates them.
-  var WARNING_FLAGS = [
-    {
-      id: 'tallAggressive',
-      label: 'Tall + aggressive: tips over easily.',
-      test: function (m, parts) {
-        return !!(parts.bitStats && parts.bitStats.grip.value >= 7 &&
-          parts.ratchet && typeof parts.ratchet.heightTenths === 'number' && parts.ratchet.heightTenths >= 70);
-      }
-    },
-    {
-      id: 'recoilGrip',
-      label: 'Blade recoil fights the bit’s aggression.',
-      test: function (m, parts) { return m.recoil >= 7 && !!(parts.bitStats && parts.bitStats.grip.value >= 7); }
-    },
-    {
-      id: 'burstProneRatchet',
-      label: 'Bursts easily.',
-      test: function (m, parts) { return !!(parts.ratchet && BURST_PRONE_RATCHET_IDS.indexOf(parts.ratchet.id) !== -1); }
-    }
-  ];
+  var CONFIDENCE = { default: 0.3 };
 
   // ================= helpers =================
   function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
@@ -84,35 +42,7 @@
   function typeTier(type) { var t = TYPE_TIER[type]; return t != null ? t : TYPE_TIER.Balance; }
   function stat(value, source, confidence) { return { value: round1(value), source: source, confidence: round2(confidence) }; }
 
-  // ================= store-backed ordinal lists & overrides =================
-  // `store` here is BeyManager's existing localStorage-backed object, passed
-  // in once via init() so this module has no direct localStorage dependency
-  // of its own (keeps it testable headless, e.g. from Node).
-  var _store = null;
-  function init(store) { _store = store; ensureShape(store); return store; }
-
-  function ensureShape(s) {
-    if (!s.ordinalLists) s.ordinalLists = {};
-    ['bladeRecoil', 'ratchetBurst', 'bitGrip', 'bitBurst'].forEach(function (axis) {
-      if (!Array.isArray(s.ordinalLists[axis])) s.ordinalLists[axis] = [];
-    });
-    if (!s.measuredOverrides) s.measuredOverrides = { blades: {}, ratchets: {}, bits: {} };
-    ['blades', 'ratchets', 'bits'].forEach(function (cat) { if (!s.measuredOverrides[cat]) s.measuredOverrides[cat] = {}; });
-    if (!s.learnedStats) s.learnedStats = { blades: {}, ratchets: {}, bits: {} };
-    ['blades', 'ratchets', 'bits'].forEach(function (cat) { if (!s.learnedStats[cat]) s.learnedStats[cat] = {}; });
-    if (!s.weightOverrides) s.weightOverrides = {};
-    if (!Array.isArray(s.battles)) s.battles = [];
-    return s;
-  }
-
-  function roleWeights(role) {
-    var override = _store && _store.weightOverrides && _store.weightOverrides[role];
-    var base = DEFAULT_ROLE_WEIGHTS[role];
-    if (!override) return base;
-    var merged = {};
-    Object.keys(base).forEach(function (k) { merged[k] = typeof override[k] === 'number' ? override[k] : base[k]; });
-    return merged;
-  }
+  function roleWeights(role) { return DEFAULT_ROLE_WEIGHTS[role]; }
 
   function rankValueInList(list, id) {
     var idx = list.indexOf(id);
@@ -169,43 +99,20 @@
     return [];
   }
 
-  // Resolves one ordinal axis (recoil/grip/burst) for one part, checking the
-  // user's own ranked list first, then the bootstrap fallback order.
+  // Resolves one ordinal axis (recoil/grip/burst) for one part from the
+  // built-in bootstrap ordering (position in that list -> 0-10).
   function resolveOrdinal(axis, id, bootstrapCache) {
-    var userList = _store.ordinalLists[axis];
-    var v = rankValueInList(userList, id);
-    if (v != null) return stat(v, 'ranked', CONFIDENCE.ranked);
-    v = rankValueInList(bootstrapCache[axis], id);
+    var v = rankValueInList(bootstrapCache[axis], id);
     return stat(v != null ? v : 5, 'default', CONFIDENCE.default);
   }
 
-  function resolveMeasured(cat, id, field) {
-    var m = _store.measuredOverrides[cat][id];
-    return m && typeof m[field] === 'number' ? m[field] : null;
-  }
-
-  function resolveLearned(cat, id, field) {
-    var l = _store.learnedStats[cat][id];
-    return l && l[field] ? l[field] : null; // {value, sampleSize}
-  }
-
-  // Generic resolver: measured > learned > (ordinal | formula default).
   function resolveField(cat, id, field, ordinalAxis, formulaFn, bootstrapCache) {
-    var measured = resolveMeasured(cat, id, field);
-    if (measured != null) return stat(measured, 'measured', CONFIDENCE.measured);
-    var learned = resolveLearned(cat, id, field);
-    if (learned) {
-      var conf = clamp(CONFIDENCE.learnedBase + Math.min(learned.sampleSize, LEARN.sampleCap) * 0.045, CONFIDENCE.learnedBase, CONFIDENCE.learnedCap);
-      return stat(learned.value, 'learned', conf);
-    }
     if (ordinalAxis) return resolveOrdinal(ordinalAxis, id, bootstrapCache);
     return stat(formulaFn(), 'default', CONFIDENCE.default);
   }
 
   // ================= schema enrichment =================
-  // Attaches plain measured/parsed fields once (idempotent); provenance-
-  // wrapped stats are resolved fresh each call to pick up live overrides
-  // and learned updates without needing to re-enrich.
+  // Attaches plain parsed fields once (idempotent).
 
   function enrichBladeShape(blade) {
     if (blade._shaped) return blade;
@@ -245,8 +152,6 @@
   }
 
   // ================= live stat resolution =================
-  // Call these at scoring time (not at load time) so measured/learned/ranked
-  // edits made in the UI take effect immediately without re-enriching.
 
   function bladeStats(blade, bootstrapCache) {
     enrichBladeShape(blade);
@@ -404,12 +309,10 @@
 
     var m = comboMetrics(bladeAgg, rStats, bStats);
     var score = round1(weightedSum(m, weights));
-    var warnings = evaluateWarningFlags(m, { ratchet: ratchet, bit: bit, ratchetStats: rStats, bitStats: bStats });
 
     return {
       role: role,
       metrics: m,
-      warnings: warnings,
       score: score,
       bladeStats: bladeAgg,
       ratchetStats: rStats,
@@ -425,96 +328,11 @@
     return out;
   }
 
-  // ================= battle log -> Elo-style learning =================
-
-  // currentValueHint: the stat's true currently-resolved value (from
-  // measured/ranked/default) BEFORE this touch — used only to seed the very
-  // first learned update. Without this, a part whose real default/ranked
-  // value is far from a neutral midpoint (e.g. a flat bit's grip defaults to
-  // 8, not 5) would get silently and incorrectly reset to 5 the instant a
-  // battle first touches it, before the delta is even applied.
-  function bumpLearned(cat, id, field, direction, boosted, currentValueHint) {
-    var store = _store;
-    var bucket = store.learnedStats[cat][id] || {};
-    var current = bucket[field];
-    var sampleSize = current ? current.sampleSize : 0;
-    var baseValue = current ? current.value : (currentValueHint != null ? currentValueHint : 5);
-    var delta = direction * LEARN.rate * (boosted ? LEARN.attributionBoost : 1) / (1 + sampleSize * 0.5);
-    bucket[field] = { value: clamp(round1(baseValue + delta), 0, 10), sampleSize: sampleSize + 1 };
-    store.learnedStats[cat][id] = bucket;
-  }
-
-  // combo: {isCX, blade, lock, main, assist, ratchet, bit}. Returns the list
-  // of blade ids in it (1, or 3 for CX) for changedPart comparison.
-  function comboBladeIds(combo) {
-    return combo.isCX ? [combo.lock, combo.main, combo.assist].filter(Boolean) : [combo.blade].filter(Boolean);
-  }
-
-  function detectChangedPart(comboA, comboB) {
-    if (!comboA || !comboB || comboA.isCX !== comboB.isCX) return null;
-    var diffs = [];
-    if (comboA.isCX) {
-      if (comboA.lock !== comboB.lock) diffs.push({ cat: 'blades', id: comboA.lock, otherId: comboB.lock });
-      if (comboA.main !== comboB.main) diffs.push({ cat: 'blades', id: comboA.main, otherId: comboB.main });
-      if (comboA.assist !== comboB.assist) diffs.push({ cat: 'blades', id: comboA.assist, otherId: comboB.assist });
-    } else if (comboA.blade !== comboB.blade) diffs.push({ cat: 'blades', id: comboA.blade, otherId: comboB.blade });
-    if (comboA.ratchet !== comboB.ratchet) diffs.push({ cat: 'ratchets', id: comboA.ratchet, otherId: comboB.ratchet });
-    if (comboA.bit !== comboB.bit) diffs.push({ cat: 'bits', id: comboA.bit, otherId: comboB.bit });
-    return diffs.length === 1 ? diffs[0] : null;
-  }
-
-  // Applies one battle's outcome to learnedStats in place. `battle` is
-  // {comboA, comboB, winner: "A"|"B", finish, changedPart?}. changedPart, if
-  // not supplied, is auto-detected when the two combos differ by exactly
-  // one part — when known, credit/blame goes to *only* that part instead of
-  // diffusing across the whole winning/losing combo.
-  // resolveCurrent(cat, id, field) -> number: the caller's job (app.js has
-  // the actual part database + bootstrap cache; this module deliberately
-  // doesn't) — returns the stat's true current value so the first learned
-  // touch seeds from reality instead of a blind guess. Safe to omit; falls
-  // back to a neutral 5 (same as never having any part-specific baseline).
-  function applyBattleResult(battle, resolveCurrent) {
-    var winnerCombo = battle.winner === 'A' ? battle.comboA : battle.comboB;
-    var loserCombo = battle.winner === 'A' ? battle.comboB : battle.comboA;
-    var changed = battle.changedPart || detectChangedPart(battle.comboA, battle.comboB);
-
-    function touch(cat, id, field, direction) {
-      if (!id) return;
-      var isChangedTarget = changed && changed.cat === cat && (changed.id === id || changed.otherId === id);
-      if (changed && !isChangedTarget) return; // attribute solely to the isolated variable when we know it
-      var hint = resolveCurrent ? resolveCurrent(cat, id, field) : null;
-      bumpLearned(cat, id, field, direction, !!changed, hint);
-    }
-
-    if (battle.finish === 'xtreme') {
-      comboBladeIds(winnerCombo).forEach(function (id) { touch('blades', id, 'atk', +1); });
-      touch('bits', winnerCombo.bit, 'grip', +1);
-    } else if (battle.finish === 'burst') {
-      comboBladeIds(winnerCombo).forEach(function (id) { touch('blades', id, 'atk', +1); });
-      touch('ratchets', loserCombo.ratchet, 'burst', -1);
-      touch('bits', loserCombo.bit, 'burst', -1);
-    } else if (battle.finish === 'spinout') {
-      comboBladeIds(winnerCombo).forEach(function (id) { touch('blades', id, 'sta', +1); });
-    }
-  }
-
   window.BeyScoring = {
     DEFAULT_ROLE_WEIGHTS: DEFAULT_ROLE_WEIGHTS,
-    WARNING_FLAGS: WARNING_FLAGS,
-    evaluateWarningFlags: evaluateWarningFlags,
-    init: init,
-    ensureShape: ensureShape,
     shapeAllParts: shapeAllParts,
     buildBootstrapCache: buildBootstrapCache,
-    bladeStats: bladeStats,
-    ratchetStatsOf: ratchetStatsOf,
-    bitStatsOf: bitStatsOf,
-    roleWeights: roleWeights,
     scoreCombo: scoreCombo,
-    scoreComboAllRoles: scoreComboAllRoles,
-    detectChangedPart: detectChangedPart,
-    applyBattleResult: applyBattleResult,
-    rankValueInList: rankValueInList,
-    bootstrapOrderFor: bootstrapOrderFor
+    scoreComboAllRoles: scoreComboAllRoles
   };
 })();
